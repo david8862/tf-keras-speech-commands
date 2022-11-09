@@ -1,0 +1,18 @@
+{
+  "buffer_t": 1.0,
+  "window_t": 0.064,
+  "hop_t": 0.032,
+  "sample_rate": 16000,
+  "sample_depth": 2,
+  "n_fft": 1024,
+  "n_filt": 20,
+  "n_mfcc": 20,
+  "use_delta": false,
+  "threshold_config": [
+    [
+      6,
+      4
+    ]
+  ],
+  "threshold_center": 0.2
+}
