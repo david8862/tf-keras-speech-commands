@@ -5,7 +5,7 @@ from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnP
 import tensorflow.keras.backend as K
 
 from classifier.model import get_model
-from classifier.data import get_data_set
+from classifier.data import get_dataset
 from classifier.params import inject_params
 from common.utils import get_classes, optimize_tf_gpu
 from common.model_utils import get_optimizer
@@ -18,6 +18,7 @@ optimize_tf_gpu(tf, K)
 def main(args):
     log_dir = os.path.join('logs', '000')
     class_names = get_classes(args.classes_path)
+    assert class_names[0] in ['background', 'others'], '1st class should be background.'
     num_classes = len(class_names)
 
     # callbacks for training process
@@ -40,8 +41,13 @@ def main(args):
     if args.params_path:
         inject_params(args.params_path)
 
-    # get train&test dataset
-    x_train, x_val, y_train, y_val = get_data_set(args.dataset_path, class_names, args.force_extract, args.val_split)
+    # get train & val dataset
+    if args.val_data_path:
+        x_train, y_train, _, _ = get_dataset(args.train_data_path, class_names, args.force_extract)
+        x_val, y_val, _, _ = get_dataset(args.val_data_path, class_names, args.force_extract)
+    else:
+        assert args.val_split > 0, 'no val data split.'
+        x_train, y_train, x_val, y_val = get_dataset(args.train_data_path, class_names, args.force_extract, args.val_split)
 
     # prepare optimizer
     if args.decay_type:
@@ -85,16 +91,18 @@ if __name__ == '__main__':
         help = "Pretrained model/weights file for fine tune")
 
     # Data options
-    parser.add_argument('--dataset_path', type=str, required=True,
-        help='dataset path containing audio files and extracted features')
+    parser.add_argument('--train_data_path', type=str, required=True,
+        help='path to train audio samples')
+    parser.add_argument('--val_data_path', type=str, required=False, default=None,
+        help='path to val audio samples')
+    parser.add_argument('--val_split', type=float, required=False, default=0.15,
+        help = "validation data persentage in dataset if no val dataset provide, default=%(default)s")
     parser.add_argument('--classes_path', type=str, required=True,
         help='path to class definitions')
     parser.add_argument('--params_path', type=str, required=False, default=None,
         help='path to params json file')
     parser.add_argument('--force_extract', default=False, action="store_true",
         help = "extract mfcc feature from wav files")
-    parser.add_argument('--val_split', type=float, required=False, default=0.15,
-        help = "validation data persentage in dataset if no val dataset provide, default=%(default)s")
 
     # Training options
     parser.add_argument('--batch_size', type=int, required=False, default=512,

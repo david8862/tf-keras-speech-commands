@@ -1,0 +1,5 @@
+background
+left
+right
+up
+down

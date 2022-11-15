@@ -74,10 +74,10 @@ def split_data(x, y, val_split):
     """
     x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=val_split, shuffle=True)
 
-    return np.asarray(x_train), np.asarray(x_val), np.asarray(y_train), np.asarray(y_val)
+    return np.asarray(x_train), np.asarray(y_train), np.asarray(x_val), np.asarray(y_val)
 
 
-def get_data_set(dataset_path, class_names, force_extract, val_split):
+def get_dataset(dataset_path, class_names, force_extract, val_split=None):
     """
     load audio data and extract & save feature vectors, then split to train/val set
     """
@@ -110,5 +110,9 @@ def get_data_set(dataset_path, class_names, force_extract, val_split):
         y.append(label)
     pbar.close()
 
-    return split_data(x, y, val_split)
+    if val_split:
+        x_train, y_train, x_val, y_val = split_data(x, y, val_split)
+        return x_train, y_train, x_val, y_val
+    else:
+        return np.asarray(x), np.asarray(y), None, None
 

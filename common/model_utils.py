@@ -1,6 +1,13 @@
 #!/usr/bin/python3
 # -*- coding=utf-8 -*-
 """Model utility functions."""
+import MNN
+import onnxruntime
+from tensorflow.keras.models import load_model
+import tensorflow.keras.backend as K
+from tensorflow.lite.python import interpreter as interpreter_wrapper
+import tensorflow as tf
+
 from tensorflow.keras.optimizers import Adam, RMSprop, SGD
 from tensorflow.keras.optimizers.schedules import ExponentialDecay, PolynomialDecay, PiecewiseConstantDecay
 from tensorflow.keras.experimental import CosineDecay
@@ -90,4 +97,69 @@ def get_averaged_optimizer(average_type, optimizer):
         raise ValueError('Unsupported average type')
 
     return averaged_optimizer
+
+
+
+#load TF 1.x frozen pb graph
+def load_graph(model_path):
+    # check tf version to be compatible with TF 2.x
+    global tf
+    if tf.__version__.startswith('2'):
+        import tensorflow.compat.v1 as tf
+        tf.disable_eager_execution()
+
+    # We parse the graph_def file
+    with tf.gfile.GFile(model_path, "rb") as f:
+        graph_def = tf.GraphDef()
+        graph_def.ParseFromString(f.read())
+
+    # We load the graph_def in the default graph
+    with tf.Graph().as_default() as graph:
+        tf.import_graph_def(
+            graph_def,
+            input_map=None,
+            return_elements=None,
+            name="graph",
+            op_dict=None,
+            producer_op_list=None
+        )
+    return graph
+
+
+def load_inference_model(model_path):
+    """
+    load different type of inference model file (h5/pb/onnx/tflite/mnn),
+    return model object and model type string
+    """
+    # normal keras h5 model
+    if model_path.endswith('.h5'):
+        model = load_model(model_path, compile=False)
+        model_format = 'H5'
+        K.set_learning_phase(0)
+
+    # support of tflite model
+    elif model_path.endswith('.tflite'):
+        model = interpreter_wrapper.Interpreter(model_path=model_path)
+        model.allocate_tensors()
+        model_format = 'TFLITE'
+
+    # support of TF 1.x frozen pb model
+    elif model_path.endswith('.pb'):
+        model = load_graph(model_path)
+        model_format = 'PB'
+
+    # support of ONNX model
+    elif model_path.endswith('.onnx'):
+        model = onnxruntime.InferenceSession(model_path)
+        model_format = 'ONNX'
+
+    # support of MNN model
+    elif model_path.endswith('.mnn'):
+        model = MNN.Interpreter(model_path)
+        model_format = 'MNN'
+
+    else:
+        raise ValueError('invalid model file')
+
+    return model, model_format
 

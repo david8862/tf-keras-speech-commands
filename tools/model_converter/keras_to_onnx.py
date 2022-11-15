@@ -31,10 +31,10 @@ def onnx_convert(keras_model_file, output_file, op_set, inputs_as_nchw):
     import tf2onnx
     model = load_model(keras_model_file)
 
-    # assume only 1 input tensor for image
+    # assume only 1 input tensor for feature vector
     assert len(model.inputs) == 1, 'invalid input tensor number.'
 
-    spec = (tf.TensorSpec(model.inputs[0].shape, tf.float32, name="image_input"),)
+    spec = (tf.TensorSpec(model.inputs[0].shape, tf.float32, name="feature_input"),)
 
     if inputs_as_nchw:
         nchw_inputs_list = [model.inputs[0].name]
@@ -53,7 +53,7 @@ def onnx_convert_with_savedmodel(keras_model_file, output_file, op_set, inputs_a
 
     model = load_model(keras_model_file)
 
-    # assume only 1 input tensor for image
+    # assume only 1 input tensor for feature vector
     assert len(model.inputs) == 1, 'invalid input tensor number.'
 
     # export to saved model
