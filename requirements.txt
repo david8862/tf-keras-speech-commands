@@ -1,0 +1,14 @@
+numpy
+scipy
+scikit-learn
+tensorflow
+pyaudio
+sonopy
+librosa
+matplotlib
+tqdm
+attrs
+mnn
+tf2onnx
+onnx
+onnxruntime

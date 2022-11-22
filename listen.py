@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Run speech commands model inference on streaming audio from microphone
+"""
 import os, argparse, time
 import numpy as np
+import math
 import pyaudio
 from tqdm import tqdm
 from shutil import get_terminal_size
@@ -28,6 +32,8 @@ default_config = {
         "classes_path": os.path.join('configs', 'direction_classes.txt'),
         "params_path": None,
         "chunk_size": 1024,
+        "sensitivity": 0.5,
+        "trigger_level": 3,
     }
 
 
@@ -46,11 +52,27 @@ class Listener(object):
         self.__dict__.update(self._defaults) # set up default values
         self.__dict__.update(kwargs) # and update with user overrides
 
+        # load & update audio params
+        if self.params_path:
+            self.pr = inject_params(self.params_path)
+        else:
+            self.pr = pr
+
+        # load class names
+        self.class_names = get_classes(self.classes_path)
+        assert self.class_names[0] in ['background', 'others'], '1st class should be background.'
+
         # get listener inference model
         self.model, self.model_format = load_inference_model(self.model_path)
         if self.model_path.endswith('.mnn'):
             #MNN inference engine need create session
             self.session = self.model.createSession()
+
+        # get ThresholdDecoder object for postprocess
+        self.threshold_decoder = ThresholdDecoder(self.pr.threshold_config, pr.threshold_center)
+
+        # get TriggerDetector object for postprocess
+        self.detector = TriggerDetector(self.chunk_size, self.class_names, self.sensitivity, self.trigger_level)
 
         # create PyAudio stream
         self.pa = pyaudio.PyAudio()
@@ -59,15 +81,6 @@ class Listener(object):
                                    format=pyaudio.paInt16,
                                    input=True,
                                    frames_per_buffer=self.chunk_size)
-
-        self.class_names = get_classes(self.classes_path)
-        assert self.class_names[0] in ['background', 'others'], '1st class should be background.'
-
-        # load & update audio params
-        if self.params_path:
-            self.pr = inject_params(self.params_path)
-        else:
-            self.pr = pr
 
         # init audio & feature buffer
         self.window_audio = np.array([])
@@ -254,14 +267,53 @@ class Listener(object):
 
         class_name = self.class_names[index]
         # for background prediction, just show inversed score
+        # and ignore label display
         if class_name == 'background':
             score = 1.0 - score
+            class_name = ''
 
         units = int(round(score * width))
         bar = 'X' * units + '-' * (width - units)
-        print(bar + class_name)
-        #cutoff = round((1.0 - self.args.sensitivity) * width)
-        #print(bar[:cutoff] + bar[cutoff:].replace('X', 'x'))
+        cutoff = round((1.0 - self.sensitivity) * width)
+        print(bar[:cutoff] + bar[cutoff:].replace('X', 'x') + class_name)
+
+
+    def on_activation(self, index):
+        print('command {} detected!'.format(self.class_names[index]))
+
+        activate_audio = 'assets/activate.wav'
+        activate_audio = os.path.join(os.path.dirname(os.path.abspath(__file__)), activate_audio)
+        self.play_activate_audio(activate_audio)
+
+    def play_activate_audio(self, filename):
+        import wave
+        CHUNK_SIZE = 1024
+
+        wf = wave.open(filename, 'rb')
+        # open stream
+        p = pyaudio.PyAudio()
+        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                        channels=wf.getnchannels(),
+                        rate=wf.getframerate(),
+                        output=True)
+        # read data
+        data = wf.readframes(CHUNK_SIZE)
+
+        # play stream
+        datas = []
+        while len(data) > 0:
+            data = wf.readframes(CHUNK_SIZE)
+            datas.append(data)
+
+        for d in datas:
+            stream.write(d)
+
+        # stop stream
+        stream.stop_stream()
+        stream.close()
+
+        # close PyAudio
+        p.terminate()
 
 
     def run(self):
@@ -275,18 +327,135 @@ class Listener(object):
             mfccs = self.update_vectors(chunk)
             features = np.expand_dims(mfccs, axis=0).astype(np.float32)
 
-            # run inference and update mfcc feature with new audio data
+            # run inference to get raw prediction
             output = self.predict(features)
-
             index = np.argmax(output, axis=-1)
             score = np.max(output, axis=-1)
 
+            # decode non-bg raw score with ThresholdDecoder
+            if self.class_names[index] != 'background':
+                score = self.threshold_decoder.decode(score)
+
+            # show confidence bar & class label
             self.on_prediction(index, score)
 
+            # update command trigger detector and trigger activation
+            if self.detector.update(index, score):
+                self.on_activation(index)
+
+
+class ThresholdDecoder:
+    """
+    Decode raw network output into a relatively linear threshold using
+    This works by estimating the logit normal distribution of network
+    activations using a series of averages and standard deviations to
+    calculate a cumulative probability distribution
+
+    Background:
+    We could simply take the output of the neural network as the confidence of a given
+    prediction, but this typically jumps quickly between 0.01 and 0.99 even in cases where
+    the network is less confident about a prediction. This is a symptom of the sigmoid squashing
+    high values to values close to 1. This ThresholdDecoder measures the average output of
+    the network over a dataset and uses that to create a smooth distribution so that an output
+    of 80% means that the network output is greater than roughly 80% of the dataset
+    """
+    def __init__(self, mu_stds, center=0.5, resolution=200, min_z=-4, max_z=4):
+        self.min_out = int(min(mu + min_z * std for mu, std in mu_stds))
+        self.max_out = int(max(mu + max_z * std for mu, std in mu_stds))
+        self.out_range = self.max_out - self.min_out
+        self.cd = np.cumsum(self._calc_pd(mu_stds, resolution))
+        self.center = center
+
+    def sigmoid(self, x):
+        """
+        Sigmoid squashing function for scalars
+        """
+        return 1 / (1 + math.exp(-x))
+
+    def asigmoid(self, x):
+        """
+        Inverse sigmoid (logit) for scalars
+        """
+        # check input value to avoid overflow
+        return -math.log(1 / x - 1) if (x > 0 and x < 1) else -10
+
+    def pdf(self, x, mu, std):
+        """
+        Probability density function (normal distribution)
+        """
+        if std == 0:
+            return 0
+        return (1.0 / (std * math.sqrt(2 * math.pi))) * np.exp(-(x - mu) ** 2 / (2 * std ** 2))
+
+
+    def decode(self, raw_output: float) -> float:
+        if raw_output == 1.0 or raw_output == 0.0:
+            return raw_output
+        if self.out_range == 0:
+            cp = int(raw_output > self.min_out)
+        else:
+            ratio = (self.asigmoid(raw_output) - self.min_out) / self.out_range
+            ratio = min(max(ratio, 0.0), 1.0)
+            cp = self.cd[int(ratio * (len(self.cd) - 1) + 0.5)]
+        if cp < self.center:
+            return 0.5 * cp / self.center
+        else:
+            return 0.5 + 0.5 * (cp - self.center) / (1 - self.center)
+
+    def encode(self, threshold: float) -> float:
+        threshold = 0.5 * threshold / self.center
+        if threshold < 0.5:
+            cp = threshold * self.center * 2
+        else:
+            cp = (threshold - 0.5) * 2 * (1 - self.center) + self.center
+        ratio = np.searchsorted(self.cd, cp) / len(self.cd)
+        return self.sigmoid(self.min_out + self.out_range * ratio)
+
+    def _calc_pd(self, mu_stds, resolution):
+        points = np.linspace(self.min_out, self.max_out, resolution * self.out_range)
+        return np.sum([self.pdf(points, mu, std) for mu, std in mu_stds], axis=0) / (resolution * len(mu_stds))
+
+
+
+class TriggerDetector(object):
+    """
+    Reads predictions and detects activations
+    This prevents multiple close activations from occurring
+    """
+    def __init__(self, chunk_size, class_names, sensitivity=0.5, trigger_level=3):
+        self.chunk_size = chunk_size
+        self.class_names = class_names
+        self.sensitivity = sensitivity
+        self.trigger_level = trigger_level
+        self.activation = 0
+        self.record_index = None
+
+    def update(self, index, score):
+        """
+        Returns whether the new prediction caused an activation
+        """
+        chunk_activated = score > 1.0 - self.sensitivity
+
+        if (self.class_names[index] != 'background' and index == self.record_index and chunk_activated):
+            self.activation += 1
+            has_activated = self.activation > self.trigger_level
+            if has_activated:
+                # reset activation
+                self.activation = -(8 * 2048) // self.chunk_size
+                return True
+
+        elif self.activation < 0:
+            self.activation += 1
+        elif self.activation > 0:
+            self.activation -= 1
+
+        # record class index for checking
+        self.record_index = index
+        return False
 
 
 def main():
-    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, description='evaluate speech commands classifier model (h5/pb/onnx/tflite/mnn) with test dataset')
+    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, description='demo speech commands model (h5/pb/onnx/tflite/mnn) inference on streaming audio from microphone')
     '''
     Command line options
     '''
@@ -306,12 +475,21 @@ def main():
         '--chunk_size', type=int, required=False, default=1024,
         help='audio samples between inference. default=%(default)s')
 
+    parser.add_argument(
+        '--sensitivity', type=float, required=False, default=0.5,
+        help='model output required to be considered activated. default=%(default)s')
+
+    parser.add_argument(
+        '--trigger_level', type=int, required=False, default=3,
+        help='number of activated chunks to cause an activation. default=%(default)s')
+
     args = parser.parse_args()
 
 
     # get wrapped listener object
     listener = Listener(**vars(args))
 
+    # run listener loop
     listener.run()
 
 

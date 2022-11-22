@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Evaluate speech commands model with test dataset
+"""
 import os, argparse, time
 import numpy as np
 from tqdm import tqdm
@@ -234,10 +237,6 @@ def main():
         '--params_path', type=str, required=False, default=None,
         help='path to params json file')
 
-    parser.add_argument(
-        '--force_extract', default=False, action="store_true",
-        help = "extract mfcc feature from wav files")
-
     args = parser.parse_args()
 
     # param parse
@@ -252,7 +251,7 @@ def main():
     model, model_format = load_inference_model(args.model_path)
 
     # get eval dataset
-    x_eval, y_eval, _, _ = get_dataset(args.dataset_path, class_names, args.force_extract)
+    x_eval, y_eval, _, _ = get_dataset(args.dataset_path, class_names)
 
     start = time.time()
     evaluate_accuracy(model, model_format, (x_eval, y_eval))

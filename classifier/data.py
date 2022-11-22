@@ -55,7 +55,7 @@ def save_features(features, feature_path):
         rmtree(feature_path)
         os.makedirs(feature_path, exist_ok=True)
 
-    print('Saving mfcc features as npy files')
+    print('Saving mfcc features as npy files to {}'.format(feature_path))
     pbar = tqdm(total=len(features), desc='Saving mfcc features')
     for feature in features:
         pbar.update(1)
@@ -77,7 +77,7 @@ def split_data(x, y, val_split):
     return np.asarray(x_train), np.asarray(y_train), np.asarray(x_val), np.asarray(y_val)
 
 
-def get_dataset(dataset_path, class_names, force_extract, val_split=None):
+def get_dataset(dataset_path, class_names, val_split=None):
     """
     load audio data and extract & save feature vectors, then split to train/val set
     """
@@ -86,8 +86,9 @@ def get_dataset(dataset_path, class_names, force_extract, val_split=None):
     audio_path = os.path.join(dataset_path, 'sounds')
     feature_path = os.path.join(dataset_path, 'features')
 
-    # forcely re-generate feature extract data and discard any existing .npy file
-    if force_extract:
+    if os.path.exists(feature_path):
+        print('feature files path {} already exists, ignore feature extraction'.format(feature_path))
+    else:
         features = extract_features(audio_path, class_names)
         save_features(features, feature_path)
 

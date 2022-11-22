@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Train Speech Commands model for your own dataset.
+"""
 import os, sys, argparse
+import numpy as np
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnPlateau, EarlyStopping, TerminateOnNaN
 import tensorflow.keras.backend as K
 
 from classifier.model import get_model
 from classifier.data import get_dataset
+from classifier.loss import SparseCategoricalCrossEntropy, WeightedSparseCategoricalCrossEntropy
 from classifier.params import inject_params
 from common.utils import get_classes, optimize_tf_gpu
 from common.model_utils import get_optimizer
@@ -43,11 +48,11 @@ def main(args):
 
     # get train & val dataset
     if args.val_data_path:
-        x_train, y_train, _, _ = get_dataset(args.train_data_path, class_names, args.force_extract)
-        x_val, y_val, _, _ = get_dataset(args.val_data_path, class_names, args.force_extract)
+        x_train, y_train, _, _ = get_dataset(args.train_data_path, class_names)
+        x_val, y_val, _, _ = get_dataset(args.val_data_path, class_names)
     else:
         assert args.val_split > 0, 'no val data split.'
-        x_train, y_train, x_val, y_val = get_dataset(args.train_data_path, class_names, args.force_extract, args.val_split)
+        x_train, y_train, x_val, y_val = get_dataset(args.train_data_path, class_names, args.val_split)
 
     # prepare optimizer
     if args.decay_type:
@@ -56,10 +61,18 @@ def main(args):
     decay_steps = steps_per_epoch * args.epochs
     optimizer = get_optimizer(args.optimizer, args.learning_rate, average_type=None, decay_type=args.decay_type, decay_steps=decay_steps)
 
+    # prepare loss according to loss type
+    if args.background_bias:
+        weights = [args.background_bias] + [(1.0 - args.background_bias) / (num_classes - 1)] * (num_classes - 1)
+        weights = np.array(weights)
+        losses = WeightedSparseCategoricalCrossEntropy(weights)
+    else:
+        losses = SparseCategoricalCrossEntropy()
+
     # get train model
     model = get_model(args.model_type, num_classes, args.weights_path)
     model.compile(optimizer=optimizer,
-                  loss='sparse_categorical_crossentropy',
+                  loss=losses,
                   metrics=['accuracy'])
     model.summary()
 
@@ -92,19 +105,19 @@ if __name__ == '__main__':
 
     # Data options
     parser.add_argument('--train_data_path', type=str, required=True,
-        help='path to train audio samples')
+        help='path to train dataset')
     parser.add_argument('--val_data_path', type=str, required=False, default=None,
-        help='path to val audio samples')
+        help='path to val dataset')
     parser.add_argument('--val_split', type=float, required=False, default=0.15,
         help = "validation data persentage in dataset if no val dataset provide, default=%(default)s")
     parser.add_argument('--classes_path', type=str, required=True,
         help='path to class definitions')
     parser.add_argument('--params_path', type=str, required=False, default=None,
         help='path to params json file')
-    parser.add_argument('--force_extract', default=False, action="store_true",
-        help = "extract mfcc feature from wav files")
 
     # Training options
+    parser.add_argument('--background_bias', type=float, required=False, default=None,
+        help = "background loss bias (0~1) when training. lower values may cause more false positives if set, default=%(default)s")
     parser.add_argument('--batch_size', type=int, required=False, default=512,
         help = "Batch size for train, default=%(default)s")
     parser.add_argument('--optimizer', type=str, required=False, default='adam', choices=['adam', 'rmsprop', 'sgd'],
