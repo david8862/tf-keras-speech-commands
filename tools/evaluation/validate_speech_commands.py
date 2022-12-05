@@ -331,7 +331,7 @@ def main():
     args = parser.parse_args()
 
     class_names = get_classes(args.classes_path)
-    assert class_names[0] in ['background', 'others'], '1st class should be background.'
+    assert class_names[0] == 'background', '1st class should be background.'
 
     # load & update audio params
     if args.params_path:

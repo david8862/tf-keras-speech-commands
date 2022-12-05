@@ -60,7 +60,7 @@ class Listener(object):
 
         # load class names
         self.class_names = get_classes(self.classes_path)
-        assert self.class_names[0] in ['background', 'others'], '1st class should be background.'
+        assert self.class_names[0] == 'background', '1st class should be background.'
 
         # get listener inference model
         self.model, self.model_format = load_inference_model(self.model_path)

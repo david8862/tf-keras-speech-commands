@@ -18,7 +18,7 @@ def onnx_convert_old(keras_model_file, output_file, op_set):
     using deprecated keras2onnx package
     """
     import keras2onnx
-    model = load_model(keras_model_file)
+    model = load_model(keras_model_file, compile=False)
 
     # convert to onnx model
     onnx_model = keras2onnx.convert_keras(model, model.name, custom_op_conversions=custom_object_dict, target_opset=op_set)
@@ -29,7 +29,7 @@ def onnx_convert_old(keras_model_file, output_file, op_set):
 
 def onnx_convert(keras_model_file, output_file, op_set, inputs_as_nchw):
     import tf2onnx
-    model = load_model(keras_model_file)
+    model = load_model(keras_model_file, compile=False)
 
     # assume only 1 input tensor for feature vector
     assert len(model.inputs) == 1, 'invalid input tensor number.'
@@ -51,7 +51,7 @@ def onnx_convert_with_savedmodel(keras_model_file, output_file, op_set, inputs_a
     if not tf.__version__.startswith('2'):
         raise ValueError('savedmodel convert only support in TF 2.x env')
 
-    model = load_model(keras_model_file)
+    model = load_model(keras_model_file, compile=False)
 
     # assume only 1 input tensor for feature vector
     assert len(model.inputs) == 1, 'invalid input tensor number.'

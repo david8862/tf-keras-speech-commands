@@ -23,7 +23,7 @@ optimize_tf_gpu(tf, K)
 def main(args):
     log_dir = os.path.join('logs', '000')
     class_names = get_classes(args.classes_path)
-    assert class_names[0] in ['background', 'others'], '1st class should be background.'
+    assert class_names[0] == 'background', '1st class should be background.'
     num_classes = len(class_names)
 
     # callbacks for training process

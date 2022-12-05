@@ -1,4 +1,4 @@
-# TF Keras Speech Commands recognition Modelset
+# TF Keras Speech Commands Recognition Modelset
 
 ## Introduction
 

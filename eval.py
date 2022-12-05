@@ -7,7 +7,6 @@ import os, argparse, time
 import numpy as np
 from tqdm import tqdm
 
-from tensorflow.keras.models import load_model
 import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow.lite.python import interpreter as interpreter_wrapper
@@ -241,7 +240,7 @@ def main():
 
     # param parse
     class_names = get_classes(args.classes_path)
-    assert class_names[0] in ['background', 'others'], '1st class should be background.'
+    assert class_names[0] == 'background', '1st class should be background.'
 
     # load & update audio params
     if args.params_path:

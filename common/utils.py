@@ -29,6 +29,19 @@ def optimize_tf_gpu(tf, K):
         K.set_session(session)
 
 
+def get_custom_objects():
+    '''
+    form up a custom_objects dict so that the customized
+    layer/function call could be correctly parsed when keras
+    .h5 model is loading or converting
+    '''
+    custom_objects_dict = {
+        'tf': tf,
+    }
+
+    return custom_objects_dict
+
+
 def get_classes(classes_path):
     '''loads the classes'''
     with open(classes_path) as f:
