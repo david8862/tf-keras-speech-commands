@@ -5,6 +5,8 @@ Here are some C++ implementation of the on-device inference for trained speech c
 * Tensorflow-Lite (verified on tag: v2.6.0)
 * [MNN](https://github.com/alibaba/MNN) from Alibaba (verified on release: [1.0.0](https://github.com/alibaba/MNN/releases/tag/1.0.0))
 
+**NOTE**: Currently the TFLite demo app support RNN based (GRU/LSTM) model, and MNN demo app support CNN based model
+
 
 ### Tensorflow-Lite
 

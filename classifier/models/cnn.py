@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os, sys
 
-from tensorflow.keras.layers import Conv2D, SeparableConv2D, MaxPooling2D, BatchNormalization, Dropout, Flatten, Dense
+from tensorflow.keras.layers import Conv2D, SeparableConv2D, MaxPooling2D, BatchNormalization, ReLU, Dropout, Flatten, Dense
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 import tensorflow.keras.backend as K
@@ -25,42 +25,45 @@ def SimpleCNN(input_shape=None,
         feature_input = input_tensor
 
     x = Conv2D(filters=16,
-               kernel_size=5,
-               activation='relu',
+               kernel_size=3,
                strides=1,
                padding='same',
-               use_bias=True)(feature_input)
+               use_bias=False)(feature_input)
+    x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
     x = MaxPooling2D()(x)
 
     x = Conv2D(filters=32,
                kernel_size=3,
-               activation='relu',
                strides=1,
                padding='same',
-               use_bias=True)(x)
-    x = MaxPooling2D()(x)
-    x = Dropout(dropout_rate)(x)
+               use_bias=False)(x)
     x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
+    x = MaxPooling2D()(x)
 
     x = Conv2D(filters=64,
                kernel_size=3,
-               activation='relu',
                strides=2,
                padding='same',
-               use_bias=True)(x)
+               use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
 
     x = Conv2D(filters=128,
                kernel_size=3,
                activation='relu',
                strides=1,
                padding='same',
-               use_bias=True)(x)
+               use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
     x = MaxPooling2D()(x)
-    x = Dropout(dropout_rate)(x)
 
     x = Flatten()(x)
     x = Dropout(dropout_rate)(x)
-    x = Dense(feature_size, activation='relu')(x)
+    x = Dense(feature_size, use_bias=True)(x)
+    x = ReLU(6.)(x)
 
     if include_top:
         x = Dense(classes, activation='softmax')(x)
@@ -88,22 +91,22 @@ def SimpleCNNLite(input_shape=None,
         feature_input = input_tensor
 
     x = SeparableConv2D(filters=16,
-                        kernel_size=5,
-                        activation='relu',
+                        kernel_size=3,
                         strides=1,
                         padding='same',
                         use_bias=True)(feature_input)
+    x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
     x = MaxPooling2D()(x)
 
     x = SeparableConv2D(filters=32,
                         kernel_size=3,
-                        activation='relu',
                         strides=1,
                         padding='same',
                         use_bias=True)(x)
-    x = MaxPooling2D()(x)
-    x = Dropout(dropout_rate)(x)
     x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
+    x = MaxPooling2D()(x)
 
     x = SeparableConv2D(filters=64,
                         kernel_size=3,
@@ -111,6 +114,8 @@ def SimpleCNNLite(input_shape=None,
                         strides=2,
                         padding='same',
                         use_bias=True)(x)
+    x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
 
     x = SeparableConv2D(filters=128,
                         kernel_size=3,
@@ -118,12 +123,14 @@ def SimpleCNNLite(input_shape=None,
                         strides=1,
                         padding='same',
                         use_bias=True)(x)
+    x = BatchNormalization()(x)
+    x = ReLU(6.)(x)
     x = MaxPooling2D()(x)
-    x = Dropout(dropout_rate)(x)
 
     x = Flatten()(x)
     x = Dropout(dropout_rate)(x)
-    x = Dense(feature_size, activation='relu')(x)
+    x = Dense(feature_size, use_bias=True)(x)
+    x = ReLU(6.)(x)
 
     if include_top:
         x = Dense(classes, activation='softmax')(x)

@@ -35,8 +35,8 @@ def main(args):
         save_weights_only=False,
         save_best_only=True,
         period=1)
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, mode='min', patience=10, verbose=1, cooldown=0, min_lr=1e-10)
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=50, verbose=1, mode='min')
+    reduce_lr = ReduceLROnPlateau(monitor='val_accuracy', factor=0.5, mode='max', patience=20, verbose=1, cooldown=0, min_lr=1e-10)
+    early_stopping = EarlyStopping(monitor='val_accuracy', min_delta=0, patience=50, verbose=1, mode='max')
     checkpoint_clean = CheckpointCleanCallBack(log_dir, max_keep=5)
     terminate_on_nan = TerminateOnNaN()
 
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # Model definition options
     parser.add_argument('--model_type', type=str, required=False, default='simple_cnn',
-        help='classifier model type: simple_cnn/simple_gru/simple_lstm, default=%(default)s')
+        help='classifier model type: simple_cnn/simple_cnn_lite/simple_gru/simple_lstm, default=%(default)s')
     parser.add_argument('--weights_path', type=str, required=False, default=None,
         help = "Pretrained model/weights file for fine tune")
 

@@ -5,7 +5,7 @@
 An end-to-end speech commands recognition pipeline. Implement with tf.keras, including model training/tuning, model evaluation, streaming audio demo, trained model export (PB/ONNX/TFLITE) and on device deployment (TFLITE/MNN). Support both CNN & RNN model type:
 
 #### Model Type
-- [x] Simple CNN
+- [x] Simple CNN (Lite)
 - [x] Simple GRU
 - [x] Simple LSTM
 
@@ -46,7 +46,7 @@ An end-to-end speech commands recognition pipeline. Implement with tf.keras, inc
     ```
 
     **NOTE**:
-    1. Audio process pipeline parameters for this project (audio format/feature params/postprocess params) are set in [params.py](https://github.com/david8862/tf-keras-speech-commands/blob/master/classifier/params.py) and could be reloaded with a json format config file (refer to [params.json](https://github.com/david8862/tf-keras-speech-commands/blob/master/configs/params.json)). The .wav audio sample format (audio_length/sample_rate/sample_depth) should be aligned with your params.
+    1. Audio process pipeline parameters (audio format/feature params/postprocess params, etc.) for this project are set in [params.py](https://github.com/david8862/tf-keras-speech-commands/blob/master/classifier/params.py) and could be reloaded with a json format config file (refer to [params.json](https://github.com/david8862/tf-keras-speech-commands/blob/master/configs/params.json)). The .wav audio sample format (audio_length/sample_rate/sample_depth) should be aligned with params and you can create/update your own json param config if needed.
     2. The `background` class is mandatory for real time inference, and generally background samples should be much more than command samples to cover the real world non-command cases. For example, you can choose 4 direction commands (up/down/left/right) samples in [Google Speech Commands](http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz) as speech commands and put all the other commands & noise samples into the background class. And the train/val/test dataset path should follow the same structure.
 
     For class names file format, refer to [direction_classes.txt](https://github.com/david8862/tf-keras-speech-commands/blob/master/configs/direction_classes.txt)
@@ -72,7 +72,7 @@ usage: train.py [-h] [--model_type MODEL_TYPE] [--weights_path WEIGHTS_PATH]
 optional arguments:
   -h, --help            show this help message and exit
   --model_type MODEL_TYPE
-                        classifier model type: simple_cnn/simple_gru/simple_lstm, default=simple_cnn
+                        classifier model type: simple_cnn/simple_cnn_lite/simple_gru/simple_lstm, default=simple_cnn
   --weights_path WEIGHTS_PATH
                         Pretrained model/weights file for fine tune
   --train_data_path TRAIN_DATA_PATH
