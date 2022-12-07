@@ -51,7 +51,7 @@ def SimpleLSTM(input_shape=None,
     else:
         feature_input = input_tensor
 
-    x = LSTM(recurrent_units, activation='linear',
+    x = LSTM(recurrent_units, activation='tanh',
             dropout=dropout_rate, name='lstm_unit')(feature_input)
 
     if include_top:
