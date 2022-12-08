@@ -17,6 +17,22 @@ def buffer_to_audio(buffer):
     return np.fromstring(buffer, dtype='<i2').astype(np.float32, order='C') / 32768.0
 
 
+def audio_to_buffer(audio):
+    """
+    convert numpy array of float to raw mono audio
+    """
+    return (audio * 32768).astype('<i2').tostring()
+
+
+def save_audio(filename, audio):
+    """
+    save loaded audio to file using the configured audio parameters
+    """
+    import wavio
+    save_audio = (audio * np.iinfo(np.int16).max).astype(np.int16)
+    wavio.write(filename, save_audio, pr.sample_rate, sampwidth=pr.sample_depth, scale='none')
+
+
 def add_deltas(features):
     """
     inserts extra features that are the difference between adjacent timesteps

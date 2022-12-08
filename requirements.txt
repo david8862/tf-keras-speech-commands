@@ -5,6 +5,7 @@ tensorflow
 pyaudio
 sonopy
 librosa
+wavio
 matplotlib
 tqdm
 attrs

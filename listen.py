@@ -6,6 +6,7 @@ Run speech commands model inference on streaming audio from microphone
 import os, argparse, time
 import numpy as np
 import math
+from random import randint
 import pyaudio
 from tqdm import tqdm
 from shutil import get_terminal_size
@@ -20,7 +21,7 @@ import onnxruntime
 from classifier.params import pr, inject_params
 from common.utils import get_classes, optimize_tf_gpu
 from common.model_utils import load_inference_model
-from common.data_utils import buffer_to_audio, vectorize_raw, add_deltas
+from common.data_utils import buffer_to_audio, vectorize_raw, add_deltas, save_audio
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -34,6 +35,7 @@ default_config = {
         "chunk_size": 1024,
         "sensitivity": 0.5,
         "trigger_level": 3,
+        "save_dir": None,
     }
 
 
@@ -83,11 +85,17 @@ class Listener(object):
                                    frames_per_buffer=self.chunk_size)
 
         # init audio & feature buffer
+        self.audio_buffer = np.zeros(self.pr.buffer_samples, dtype=float)
         self.window_audio = np.array([])
         self.mfccs = np.zeros((self.pr.n_features, self.pr.n_mfcc))
 
+        self.session_id, self.record_num = '%09d' % randint(0, 999999999), 0
+
     def update_vectors(self, chunk):
         buffer_audio = buffer_to_audio(chunk)
+
+        # shift audio buffer to add new chunk audio
+        self.audio_buffer = np.concatenate((self.audio_buffer[len(buffer_audio):], buffer_audio))
         self.window_audio = np.concatenate((self.window_audio, buffer_audio))
         #self.window_audio = np.concatenate((self.window_audio[len(buffer_audio):], buffer_audio))
 
@@ -284,6 +292,17 @@ class Listener(object):
         activate_audio = 'assets/activate.wav'
         activate_audio = os.path.join(os.path.dirname(os.path.abspath(__file__)), activate_audio)
         self.play_activate_audio(activate_audio)
+
+        if self.save_dir:
+            # touch save class dir
+            save_class_dir = os.path.join(self.save_dir, self.class_names[index])
+            os.makedirs(save_class_dir, exist_ok=True)
+
+            # save activated audio
+            wav_path = os.path.join(save_class_dir, self.session_id + '_' + str(self.record_num) + '.wav')
+            save_audio(wav_path, self.audio_buffer)
+            print('Saved to ' + wav_path + '.')
+            self.record_num += 1
 
     def play_activate_audio(self, filename):
         import wave
@@ -482,6 +501,10 @@ def main():
     parser.add_argument(
         '--trigger_level', type=int, required=False, default=3,
         help='number of activated chunks to cause an activation. default=%(default)s')
+
+    parser.add_argument(
+        '--save_dir', type=str, required=False, default=None,
+        help='folder to save false positives. default=%(default)s')
 
     args = parser.parse_args()
 

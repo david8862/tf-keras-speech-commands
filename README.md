@@ -175,7 +175,13 @@ Run live demo with trained model on streaming audio from microphone. This would 
 
 ```
 # python listen.py -h
-usage: listen.py [-h] --model_path MODEL_PATH --classes_path CLASSES_PATH [--params_path PARAMS_PATH] [--chunk_size CHUNK_SIZE] [--sensitivity SENSITIVITY] [--trigger_level TRIGGER_LEVEL]
+usage: listen.py [-h] --model_path MODEL_PATH
+                      --classes_path CLASSES_PATH
+                      [--params_path PARAMS_PATH]
+                      [--chunk_size CHUNK_SIZE]
+                      [--sensitivity SENSITIVITY]
+                      [--trigger_level TRIGGER_LEVEL]
+                      [--save_dir SAVE_DIR]
 
 demo speech commands model (h5/pb/onnx/tflite/mnn) inference on streaming audio from microphone
 
@@ -193,6 +199,7 @@ optional arguments:
                         model output required to be considered activated. default=0.5
   --trigger_level TRIGGER_LEVEL
                         number of activated chunks to cause an activation. default=3
+  --save_dir SAVE_DIR   folder to save false positives. default=None
 
 # python listen.py --model_path=model.h5 --classes_path=configs/direction_classes.txt --params_path=configs/params.json
 --------------------------------------------------------------------------------
@@ -218,6 +225,8 @@ X-------------------------------------------------------------------------------
 X-------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 ```
+
+You can also use `--save_dir` to record the activated audio (False Positives), if you didn'y say any commands during running the demo.
 
 
 ### Tensorflow model convert
