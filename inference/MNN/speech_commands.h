@@ -90,7 +90,7 @@ struct Settings {
     int loop_count = 1;
     int top_k = 1;
     float conf_thrd = 0.5f;
-    std::string model_name = "./model.tflite";
+    std::string model_name = "./model.mnn";
     std::string params_file_name = "./params.json";
     std::string classes_file_name = "./classes.txt";
     std::string input_wav_name = "./test.wav";
@@ -141,11 +141,11 @@ void parse_param(const std::string &param_file, ListenerParams &listener_params)
     // NOTE: we didn't check json content but directly fetch value for simple code.
     //       may have problem for broken json file
 
-    // "buffer_t": 1.5
+    // "buffer_t": 1.0
     listener_params.buffer_t = cJSON_GetObjectItem(root_json, "buffer_t")->valuedouble;
-    // "window_t": 0.1
+    // "window_t": 0.064
     listener_params.window_t = cJSON_GetObjectItem(root_json, "window_t")->valuedouble;
-    // "hop_t": 0.05
+    // "hop_t": 0.032
     listener_params.hop_t = cJSON_GetObjectItem(root_json, "hop_t")->valuedouble;
 
     // "sample_rate": 16000
@@ -153,11 +153,11 @@ void parse_param(const std::string &param_file, ListenerParams &listener_params)
     // "sample_depth": 2
     listener_params.sample_depth = cJSON_GetObjectItem(root_json, "sample_depth")->valueint;
 
-    // "n_fft": 512
+    // "n_fft": 1024
     listener_params.n_fft = cJSON_GetObjectItem(root_json, "n_fft")->valueint;
     // "n_filt": 20
     listener_params.n_filt = cJSON_GetObjectItem(root_json, "n_filt")->valueint;
-    // "n_mfcc": 13
+    // "n_mfcc": 20
     listener_params.n_mfcc = cJSON_GetObjectItem(root_json, "n_mfcc")->valueint;
 
     // "use_delta": false
