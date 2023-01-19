@@ -6,6 +6,9 @@ Evaluate speech commands model with test dataset
 import os, argparse, time
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import itertools
+from sklearn.metrics import confusion_matrix
 
 import tensorflow.keras.backend as K
 import tensorflow as tf
@@ -23,15 +26,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 optimize_tf_gpu(tf, K)
 
 
-def predict_keras(model, data, target):
+def predict_keras(model, data):
     output = model.predict([data])
     pred = np.argmax(output, axis=-1)
-    correct = float(np.equal(pred, target).astype(np.int32).sum())
 
-    return correct
+    return pred
 
 
-def predict_pb(model, data, target):
+def predict_pb(model, data):
     # check tf version to be compatible with TF 2.x
     global tf
     if tf.__version__.startswith('2'):
@@ -58,12 +60,11 @@ def predict_pb(model, data, target):
             feature_input: data
         })
     pred = np.argmax(output, axis=-1)
-    correct = float(np.equal(pred, target).astype(np.int32).sum())
 
-    return correct
+    return pred
 
 
-def predict_tflite(interpreter, data, target):
+def predict_tflite(interpreter, data):
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
@@ -80,12 +81,11 @@ def predict_tflite(interpreter, data, target):
         output.append(output_data)
 
     pred = np.argmax(output[0], axis=-1)
-    correct = float(np.equal(pred, target).astype(np.int32).sum())
 
-    return correct
+    return pred
 
 
-def predict_onnx(model, data, target):
+def predict_onnx(model, data):
     input_tensors = []
     for i, input_tensor in enumerate(model.get_inputs()):
         input_tensors.append(input_tensor)
@@ -103,12 +103,11 @@ def predict_onnx(model, data, target):
     output = model.run(None, feed)
 
     pred = np.argmax(output, axis=-1)
-    correct = float(np.equal(pred, target).astype(np.int32).sum())
 
-    return correct
+    return pred
 
 
-def predict_mnn(interpreter, session, data, target):
+def predict_mnn(interpreter, session, data):
     from functools import reduce
     from operator import mul
 
@@ -168,16 +167,47 @@ def predict_mnn(interpreter, session, data, target):
 
     output.append(output_data)
     pred = np.argmax(output[0], axis=-1)
-    correct = float(np.equal(pred, target).astype(np.int32).sum())
 
-    return correct
+    return pred
 
 
-def evaluate_accuracy(model, model_format, eval_dataset):
-    correct = 0.0
+def plot_confusion_matrix(cm, classes, accuracy, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        cm[np.isnan(cm)] = 0
+    trained_classes = classes
+    plt.figure()
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title, fontsize=11)
+    tick_marks = np.arange(len(classes))
+    plt.xticks(np.arange(len(trained_classes)), classes, rotation=90, fontsize=9)
+    plt.yticks(tick_marks, classes, fontsize=9)
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, np.round(cm[i, j], 2), horizontalalignment="center", color="white" if cm[i, j] > thresh else "black", fontsize=7)
+    plt.ylabel('True label', fontsize=9)
+    plt.xlabel('Predicted label', fontsize=9)
+
+    plt.title('Accuracy: ' + str(np.round(accuracy*100, 2)))
+    output_path = os.path.join('result', 'confusion_matrix.png')
+    os.makedirs('result', exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(output_path)
+    #plt.show()
+
+    # close the plot
+    plt.close()
+    return
+
+
+def evaluate_accuracy(model, model_format, eval_dataset, class_names):
     if model_format == 'MNN':
         #MNN inference engine need create session
         session = model.createSession()
+
+    correct = 0.0
+    target_list = []
+    pred_list = []
 
     x_eval, y_eval = eval_dataset
     pbar = tqdm(total=len(x_eval))
@@ -187,21 +217,25 @@ def evaluate_accuracy(model, model_format, eval_dataset):
 
         # normal keras h5 model
         if model_format == 'H5':
-            correct += predict_keras(model, feature, target)
+            pred = predict_keras(model, feature)
         # support of TF 1.x frozen pb model
         elif model_format == 'PB':
-            correct += predict_pb(model, feature, target)
+            pred = predict_pb(model, feature)
         # support of tflite model
         elif model_format == 'TFLITE':
-            correct += predict_tflite(model, feature, target)
+            pred = predict_tflite(model, feature)
         # support of ONNX model
         elif model_format == 'ONNX':
-            correct += predict_onnx(model, feature, target)
+            pred = predict_onnx(model, feature)
         # support of MNN model
         elif model_format == 'MNN':
-            correct += predict_mnn(model, session, feature, target)
+            pred = predict_mnn(model, session, feature)
         else:
             raise ValueError('invalid model format')
+
+        correct += float(np.equal(pred, target).astype(np.int32).sum())
+        target_list.append(target)
+        pred_list.append(pred)
 
         pbar.set_description('Evaluate acc: %06.4f' % (correct/(i + 1)))
         pbar.update(1)
@@ -209,7 +243,11 @@ def evaluate_accuracy(model, model_format, eval_dataset):
 
     val_acc = correct / len(x_eval)
     print('Test set accuracy: {}/{} ({:.2f}%)'.format(
-        correct, len(x_eval), val_acc))
+        correct, len(x_eval), val_acc*100))
+
+    # Plot accuracy & confusion matrix
+    confusion_mat = confusion_matrix(y_true=np.squeeze(target_list), y_pred=np.squeeze(pred_list), labels=list(range(len(class_names))))
+    plot_confusion_matrix(confusion_mat, class_names, val_acc, normalize=True)
 
     return val_acc
 
@@ -253,7 +291,7 @@ def main():
     x_eval, y_eval, _, _ = get_dataset(args.dataset_path, class_names)
 
     start = time.time()
-    evaluate_accuracy(model, model_format, (x_eval, y_eval))
+    evaluate_accuracy(model, model_format, (x_eval, y_eval), class_names)
     end = time.time()
     print("Evaluation time cost: {:.6f}s".format(end - start))
 

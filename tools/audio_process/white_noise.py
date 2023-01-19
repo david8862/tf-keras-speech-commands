@@ -39,7 +39,7 @@ def main():
     args = parser.parse_args()
 
 
-    white_noise(args.sample_rate, args.amplitude, args.length, args.output_file)
+    white_noise(args.length, args.sample_rate, args.amplitude, args.output_file)
 
 
 

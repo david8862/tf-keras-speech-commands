@@ -91,6 +91,8 @@ def get_dataset(dataset_path, class_names, val_split=None):
     else:
         features = extract_features(audio_path, class_names)
         save_features(features, feature_path)
+        # destroy feature list object during extraction to save memory
+        del(features)
 
     print('Loading mfcc features into memory')
     x = []

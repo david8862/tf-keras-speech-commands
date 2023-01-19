@@ -23,8 +23,8 @@ def audio_resample(audio_file, output_file, sample_rate):
 def show_audio_info(sound):
     print('channels: {}'.format(sound.channels))
     print('duration seconds: {} s'.format(sound.duration_seconds))
-    print('loudness: {} dB'.format(sound.dBFS))
-    print('max loudness: {} dB'.format(sound.max_dBFS))
+    print('loudness: {} dBFS'.format(sound.dBFS))
+    print('max loudness: {} dBFS'.format(sound.max_dBFS))
     print('raw loudness: {}'.format(sound.rms))
     print('raw max loudness: {}'.format(sound.max))
     print('sample rate: {}'.format(sound.frame_rate))

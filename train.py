@@ -35,7 +35,7 @@ def main(args):
         save_weights_only=False,
         save_best_only=True,
         period=1)
-    reduce_lr = ReduceLROnPlateau(monitor='val_accuracy', factor=0.5, mode='max', patience=20, verbose=1, cooldown=0, min_lr=1e-10)
+    reduce_lr = ReduceLROnPlateau(monitor='val_accuracy', factor=0.5, mode='max', patience=10, verbose=1, cooldown=0, min_lr=1e-10)
     early_stopping = EarlyStopping(monitor='val_accuracy', min_delta=0, patience=50, verbose=1, mode='max')
     checkpoint_clean = CheckpointCleanCallBack(log_dir, max_keep=5)
     terminate_on_nan = TerminateOnNaN()

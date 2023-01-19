@@ -24,8 +24,8 @@ def audio_resample(audio_file, output_file, sample_rate):
 def show_audio_info(sound):
     print('channels: {}'.format(sound.channels))
     print('duration seconds: {} s'.format(sound.duration_seconds))
-    print('loudness: {} dB'.format(sound.dBFS))
-    print('max loudness: {} dB'.format(sound.max_dBFS))
+    print('loudness: {} dBFS'.format(sound.dBFS))
+    print('max loudness: {} dBFS'.format(sound.max_dBFS))
     print('raw loudness: {}'.format(sound.rms))
     print('raw max loudness: {}'.format(sound.max))
     print('sample rate: {}'.format(sound.frame_rate))
@@ -95,7 +95,7 @@ def pcm_convert(audio_file, output_path, channel_num, sample_rate, sample_bit, c
     wf.close()
 
 
-def audio_convert(audio_file, output_path, channel_num, sample_rate, sample_bit, clip_length, fill_white_noise, noise_amplitude, target_format, verbose=False):
+def audio_convert(audio_file, output_path, channel_num, sample_rate, sample_bit, loudness, clip_length, fill_white_noise, noise_amplitude, target_format, verbose=False):
     audio_suffix = audio_file.split('.')[-1].lower()
 
     # convert pcm raw audio data
@@ -127,6 +127,10 @@ def audio_convert(audio_file, output_path, channel_num, sample_rate, sample_bit,
         sound = sound.set_sample_width(sample_width)
     else:
         sample_bit = sound.sample_width * 8
+
+    if loudness:
+        change_in_dBFS = loudness - sound.dBFS
+        sound = sound.apply_gain(change_in_dBFS)
 
     if clip_length:
         # check if clip length longer than total audio length
@@ -167,6 +171,8 @@ def main():
                         help='target sample rate, None is unchange. default=%(default)s')
     parser.add_argument('--sample_bit', type=int, required=False, default=None, choices=[None, 8, 16, 24, 32],
                         help='target sample bit number, None is unchange. default=%(default)s')
+    parser.add_argument('--loudness', type=float, required=False, default=None,
+                        help='target loudness in dBFS (should be negative number), None is unchange. default=%(default)s')
     parser.add_argument('--clip_length', type=int, required=False, default=None,
                         help='target audio length in ms, None is unchange. default=%(default)s')
     parser.add_argument('--fill_white_noise', default=False, action="store_true",
@@ -182,13 +188,13 @@ def main():
 
     # get audio file list or single audio
     if os.path.isfile(args.audio_path):
-        audio_convert(args.audio_path, args.output_path, args.channel_num, args.sample_rate, args.sample_bit, args.clip_length, args.fill_white_noise, args.noise_amplitude, args.target_format, verbose=True)
+        audio_convert(args.audio_path, args.output_path, args.channel_num, args.sample_rate, args.sample_bit, args.loudness, args.clip_length, args.fill_white_noise, args.noise_amplitude, args.target_format, verbose=True)
     else:
         audio_files = glob.glob(os.path.join(args.audio_path, '*'))
         pbar = tqdm(total=len(audio_files), desc='Audio Convert')
 
         for audio_file in audio_files:
-            audio_convert(audio_file, args.output_path, args.channel_num, args.sample_rate, args.sample_bit, args.clip_length, args.fill_white_noise, args.noise_amplitude, args.target_format, verbose=False)
+            audio_convert(audio_file, args.output_path, args.channel_num, args.sample_rate, args.sample_bit, args.loudness, args.clip_length, args.fill_white_noise, args.noise_amplitude, args.target_format, verbose=False)
             pbar.update(1)
         pbar.close()
 

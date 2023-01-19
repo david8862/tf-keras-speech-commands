@@ -13,8 +13,8 @@ from pydub.playback import play
 def show_audio_info(sound):
     print('channels: {}'.format(sound.channels))
     print('duration seconds: {} s'.format(sound.duration_seconds))
-    print('loudness: {} dB'.format(sound.dBFS))
-    print('max loudness: {} dB'.format(sound.max_dBFS))
+    print('loudness: {} dBFS'.format(sound.dBFS))
+    print('max loudness: {} dBFS'.format(sound.max_dBFS))
     print('raw loudness: {}'.format(sound.rms))
     print('raw max loudness: {}'.format(sound.max))
     print('sample rate: {}'.format(sound.frame_rate))
@@ -42,6 +42,8 @@ def main():
     parser = argparse.ArgumentParser(description='play audio files')
     parser.add_argument('--audio_path', type=str, required=True,
                         help='audio file or directory to play')
+    parser.add_argument('--pause_between_audios', default=False, action="store_true",
+                        help='pause to wait for key input before playing next')
 
     args = parser.parse_args()
 
@@ -54,6 +56,10 @@ def main():
         for i, audio_file in enumerate(audio_files):
             print('\nPlaying ({}/{}): {}'.format(i+1, len(audio_files), audio_file))
             audio_play(audio_file)
+
+            if args.pause_between_audios and (i+1) < len(audio_files):
+                print('\nPress any key to play next audio')
+                choice = input("> ")
 
     print('\nDone')
 
