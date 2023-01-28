@@ -14,10 +14,12 @@ from tensorflow.lite.python import interpreter as interpreter_wrapper
 import tensorflow as tf
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
-from common.utils import get_classes
+from common.utils import get_classes, optimize_tf_gpu
 from common.model_utils import load_inference_model
 from common.data_utils import get_mfcc_feature
 from classifier.params import inject_params
+
+optimize_tf_gpu(tf, K)
 
 
 def validate_speech_commands_model(model, audio_file, class_names, top_k, loop_count, output_path):

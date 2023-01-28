@@ -63,6 +63,7 @@ def main(args):
 
     # prepare loss according to loss type
     if args.background_bias:
+        assert args.background_bias > 0 and args.background_bias < 1, 'background bias should between 0 and 1'
         weights = [args.background_bias] + [(1.0 - args.background_bias) / (num_classes - 1)] * (num_classes - 1)
         weights = np.array(weights)
         losses = WeightedSparseCategoricalCrossEntropy(weights)

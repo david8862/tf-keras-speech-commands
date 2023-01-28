@@ -3,6 +3,7 @@ scipy
 scikit-learn
 tensorflow
 pyaudio
+pydub
 sonopy
 librosa
 wavio

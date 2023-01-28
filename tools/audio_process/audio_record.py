@@ -22,20 +22,9 @@ def show_audio_info(wf):
 
 
 def audio_record(output_file, channels, sample_rate, sample_bit, record_length, chunk_size):
-    # set sample bit format
-    if sample_bit == 8:
-        pa_format = pyaudio.paInt8 #paUInt8
-    elif sample_bit == 16:
-        pa_format = pyaudio.paInt16
-    elif sample_bit == 24:
-        pa_format = pyaudio.paInt24
-    elif sample_bit == 32:
-        pa_format = pyaudio.paFloat32 #paInt32
-    else:
-        raise ValueError('Unsupported sample bit')
-
     # create PyAudio stream
     p = pyaudio.PyAudio()
+    pa_format = p.get_format_from_width(sample_bit//8)
     stream = p.open(format=pa_format,
                     channels=channels,
                     rate=sample_rate,

@@ -17,6 +17,7 @@ An end-to-end speech commands recognition pipeline. Implement with tf.keras, inc
 1. Install requirements on Ubuntu 18.04/20.04:
 
 ```
+# apt install ffmpeg portaudio19-dev
 # pip install -r requirements.txt
 ```
 
@@ -100,11 +101,22 @@ optional arguments:
 
 Following is reference config cmd for training simple_gru model:
 ```
-# python train.py --model_type=simple_gru --train_data_path=train_data/ --val_data_path=val_data/ --classes_path=configs/direction_classes.txt --params_path=configs/params.json --background_bias=0.9
+# python train.py --model_type=simple_gru --train_data_path=train_data/ --val_data_path=val_data/ --classes_path=configs/direction_classes.txt --params_path=configs/params.json --background_bias=0.99
 ```
 
 Checkpoints during training could be found at `logs/000/`. Choose a best one as result
 
+You can also use Tensorboard to monitor the loss trend during train:
+```
+# tensorboard --logdir=logs/000
+```
+
+### Model dump
+You can dump out inference model from h5 training checkpoint for eval or demo. Following script cmd work for that.
+
+```
+# python listen.py --model_path=logs/000/<checkpoint>.h5 --classes_path=configs/direction_classes.txt --params_path=configs/params.json --dump_model --output_model_file=model.h5
+```
 
 
 ### Evaluation
@@ -167,9 +179,11 @@ optional arguments:
                         output path to save predict result, default=None
 ```
 
+Some pretrained models could be found in [Releases](https://github.com/david8862/tf-keras-speech-commands/releases)
+
 
 ### Demo
-Run live demo with trained model on streaming audio from microphone. This would be more effictive to verify model performance in real world:
+Run live demo with trained model on streaming audio from microphone or on wav audio file. This would be more effictive to verify model performance in real world:
 
 [listen.py](https://github.com/david8862/tf-keras-speech-commands/blob/master/listen.py)
 
@@ -183,7 +197,7 @@ usage: listen.py [-h] --model_path MODEL_PATH
                       [--trigger_level TRIGGER_LEVEL]
                       [--save_dir SAVE_DIR]
 
-demo speech commands model (h5/pb/onnx/tflite/mnn) inference on streaming audio from microphone
+demo speech commands model (h5/pb/onnx/tflite/mnn) inference on streaming audio from microphone or on wav audio file
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -200,6 +214,11 @@ optional arguments:
   --trigger_level TRIGGER_LEVEL
                         number of activated chunks to cause an activation. default=3
   --save_dir SAVE_DIR   folder to save false positives. default=None
+  --input_wav INPUT_WAV
+                        (optional) input wav audio file to listen
+  --dump_model          Dump out training model to inference model
+  --output_model_file OUTPUT_MODEL_FILE
+                        output inference model file
 
 # python listen.py --model_path=model.h5 --classes_path=configs/direction_classes.txt --params_path=configs/params.json
 --------------------------------------------------------------------------------
@@ -251,3 +270,5 @@ by default, the converted ONNX model follows TF NHWC layout. You can also use `-
 
 You can also use [eval.py](https://github.com/david8862/tf-keras-speech-commands/blob/master/eval.py) to do evaluation on the pb & onnx inference model
 
+### Inference model deployment
+See [on-device inference](https://github.com/david8862/tf-keras-speech-commands/tree/master/inference) for TFLite & MNN model deployment

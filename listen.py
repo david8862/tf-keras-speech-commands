@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Run speech commands model inference on streaming audio from microphone
+Run speech commands model inference on streaming audio from microphone or on wav audio file
 """
-import os, argparse, time
+import os, sys, argparse, time
 import numpy as np
 import math
 from random import randint
 import pyaudio
+import wave
 from tqdm import tqdm
 from shutil import get_terminal_size
 
@@ -36,6 +37,7 @@ default_config = {
         "sensitivity": 0.5,
         "trigger_level": 3,
         "save_dir": None,
+        "input_wav": None,
     }
 
 
@@ -75,14 +77,6 @@ class Listener(object):
 
         # get TriggerDetector object for postprocess
         self.detector = TriggerDetector(self.chunk_size, self.class_names, self.sensitivity, self.trigger_level)
-
-        # create PyAudio stream
-        self.pa = pyaudio.PyAudio()
-        self.stream = self.pa.open(rate=16000,
-                                   channels=1,
-                                   format=pyaudio.paInt16,
-                                   input=True,
-                                   frames_per_buffer=self.chunk_size)
 
         # init audio & feature buffer
         self.audio_buffer = np.zeros(self.pr.buffer_samples, dtype=float)
@@ -286,12 +280,13 @@ class Listener(object):
         print(bar[:cutoff] + bar[cutoff:].replace('X', 'x') + class_name)
 
 
-    def on_activation(self, index):
+    def on_activation(self, index, play_activate=False):
         print('command {} detected!'.format(self.class_names[index]))
 
-        activate_audio = 'assets/activate.wav'
-        activate_audio = os.path.join(os.path.dirname(os.path.abspath(__file__)), activate_audio)
-        self.play_activate_audio(activate_audio)
+        if play_activate:
+            activate_audio = 'assets/activate.wav'
+            activate_audio = os.path.join(os.path.dirname(os.path.abspath(__file__)), activate_audio)
+            self.play_activate_audio(activate_audio)
 
         if self.save_dir:
             # touch save class dir
@@ -305,40 +300,48 @@ class Listener(object):
             self.record_num += 1
 
     def play_activate_audio(self, filename):
-        import wave
-        CHUNK_SIZE = 1024
+        activate_chunk_size = 1024
 
         wf = wave.open(filename, 'rb')
-        # open stream
+        # create activate audio play stream
         p = pyaudio.PyAudio()
-        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+        activate_stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                         channels=wf.getnchannels(),
                         rate=wf.getframerate(),
                         output=True)
         # read data
-        data = wf.readframes(CHUNK_SIZE)
+        data = wf.readframes(activate_chunk_size)
 
-        # play stream
+        # play activate stream
         datas = []
         while len(data) > 0:
-            data = wf.readframes(CHUNK_SIZE)
+            data = wf.readframes(activate_chunk_size)
             datas.append(data)
 
         for d in datas:
-            stream.write(d)
+            activate_stream.write(d)
 
-        # stop stream
-        stream.stop_stream()
-        stream.close()
+        # stop activate stream
+        activate_stream.stop_stream()
+        activate_stream.close()
 
         # close PyAudio
+        wf.close()
         p.terminate()
 
 
-    def run(self):
+    def run_microphone(self):
+        # create PyAudio record stream for microphone input
+        p = pyaudio.PyAudio()
+        record_stream = p.open(rate=self.pr.sample_rate,
+                                   channels=1,
+                                   format=p.get_format_from_width(self.pr.sample_depth),
+                                   input=True,
+                                   frames_per_buffer=self.chunk_size)
+
         while True:
-            # read audio chunk data from PyAudio stream
-            chunk = self.stream.read(self.chunk_size)
+            # read audio chunk data from PyAudio record stream
+            chunk = record_stream.read(self.chunk_size)
             if len(chunk) == 0:
                 raise EOFError
 
@@ -360,7 +363,82 @@ class Listener(object):
 
             # update command trigger detector and trigger activation
             if self.detector.update(index, score):
-                self.on_activation(index)
+                self.on_activation(index, play_activate=True)
+
+        # stop record stream
+        record_stream.stop_stream()
+        record_stream.close()
+
+        # close PyAudio
+        p.terminate()
+
+
+    def run_wav(self):
+        wf = wave.open(self.input_wav, 'rb')
+
+        # check if input wav audio format match model inference config
+        assert wf.getnchannels() == 1, 'input wav channels mismatch'
+        assert wf.getframerate() == self.pr.sample_rate, 'input wav sample rate mismatch'
+        assert wf.getsampwidth() == self.pr.sample_depth, 'input wav sample depth mismatch'
+        assert wf.getnframes() > 0, 'no valid data in input wav'
+
+        # create PyAudio play stream for wav audio input
+        p = pyaudio.PyAudio()
+        play_stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                        channels=wf.getnchannels(),
+                        rate=wf.getframerate(),
+                        output=True)
+
+        # read 1st audio chunk data
+        chunk = wf.readframes(self.chunk_size)
+
+        while len(chunk) > 0:
+            # play wav audio to stream
+            play_stream.write(chunk)
+
+            # update mfcc feature with new audio data
+            mfccs = self.update_vectors(chunk)
+            features = np.expand_dims(mfccs, axis=0).astype(np.float32)
+
+            # run inference to get raw prediction
+            output = self.predict(features)
+            index = np.argmax(output, axis=-1)
+            score = np.max(output, axis=-1)
+
+            # decode non-bg raw score with ThresholdDecoder
+            if self.class_names[index] != 'background':
+                score = self.threshold_decoder.decode(score)
+
+            # show confidence bar & class label
+            self.on_prediction(index, score)
+
+            # update command trigger detector and trigger activation
+            if self.detector.update(index, score):
+                self.on_activation(index, play_activate=False)
+
+            # read next audio chunk data from input wav audio
+            chunk = wf.readframes(self.chunk_size)
+
+        # stop play stream
+        play_stream.stop_stream()
+        play_stream.close()
+
+        # close PyAudio
+        wf.close()
+        p.terminate()
+
+
+    def run(self):
+        if self.input_wav:
+            self.run_wav()
+        else:
+            self.run_microphone()
+
+
+    def dump_model_file(self, output_model_file):
+        assert self.model_format == 'H5', 'only h5 model could be dumped'
+        self.model.save(output_model_file)
+
 
 
 class ThresholdDecoder:
@@ -474,7 +552,7 @@ class TriggerDetector(object):
 
 
 def main():
-    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, description='demo speech commands model (h5/pb/onnx/tflite/mnn) inference on streaming audio from microphone')
+    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS, description='demo speech commands model (h5/pb/onnx/tflite/mnn) inference on streaming audio from microphone or on wav audio file')
     '''
     Command line options
     '''
@@ -506,14 +584,42 @@ def main():
         '--save_dir', type=str, required=False, default=None,
         help='folder to save false positives. default=%(default)s')
 
+    parser.add_argument(
+        "--input_wav", type=str, required=False, default=None,
+        help='(optional) input wav audio file to listen')
+
+    '''
+    Command line positional arguments -- for model dump
+    '''
+    parser.add_argument(
+        '--dump_model', default=False, action="store_true",
+        help='Dump out training model to inference model'
+    )
+
+    parser.add_argument(
+        '--output_model_file', type=str,
+        help='output inference model file'
+    )
+
     args = parser.parse_args()
 
 
     # get wrapped listener object
     listener = Listener(**vars(args))
 
-    # run listener loop
-    listener.run()
+    if args.dump_model:
+        """
+        Dump out training model to inference model
+        """
+        if not args.output_model_file:
+            raise ValueError('output model file is not specified')
+
+        print('Dumping out training model to inference model')
+        listener.dump_model_file(args.output_model_file)
+        sys.exit()
+    else:
+        # run listener loop
+        listener.run()
 
 
 
