@@ -5,6 +5,7 @@ Plot waveform & spectrogram for audio sample files
 
 Reference from:
 https://www.cnblogs.com/LXP-Never/p/13404523.html
+https://www.cnblogs.com/LXP-Never/p/10619759.html
 """
 import os, sys, argparse
 import glob
@@ -16,22 +17,54 @@ import librosa
 
 def plot_audio(audio_file, sample_rate, output_path):
     wav_data, _ = librosa.load(audio_file, sr=sample_rate, mono=True)
+    plt.figure(figsize=(10,10))
 
     # draw waveform
-    plt.subplot(2, 1, 1)
-    plt.title("Waveform", fontsize='large')
+    plt.subplot(4, 1, 1)
+    plt.title("Waveform", fontsize='medium')
     time = np.arange(0, len(wav_data)) * (1.0 / sample_rate)
     plt.plot(time, wav_data)
-    plt.xlabel('Time/s', fontsize='large')
-    plt.ylabel('Amplitude', fontsize='large')
+    plt.xlabel('Time/s', fontsize='medium')
+    plt.ylabel('Amplitude', fontsize='medium')
 
     # draw spectrogram
-    plt.subplot(2, 1, 2)
-    plt.title("Spectrogram", fontsize='large')
+    plt.subplot(4, 1, 2)
+    plt.title("Spectrogram", fontsize='medium')
     plt.specgram(wav_data, Fs=sample_rate, scale_by_freq=True, sides='default', cmap="jet")
-    plt.xlabel('Time/s', fontsize='large')
-    plt.ylabel('Freq/Hz', fontsize='large')
+    plt.xlabel('Time/s', fontsize='medium')
+    plt.ylabel('Freq/Hz', fontsize='medium')
 
+    # draw magnitude spectrum
+    plt.subplot(4, 2, 5)
+    plt.title("Magnitude Spectrum", fontsize='medium')
+    plt.magnitude_spectrum(wav_data, Fs=sample_rate, color='C1')
+    plt.xlabel("Freq/Hz", fontsize='medium')
+    plt.ylabel("Mag/Power", fontsize='medium')
+
+    # draw dB-scale magnitude spectrum
+    plt.subplot(4, 2, 6)
+    plt.title("Magnitude Spectrum (dB)", fontsize='medium')
+    plt.magnitude_spectrum(wav_data, Fs=sample_rate, scale='dB', color='C1')
+    plt.xlabel("Freq/Hz", fontsize='medium')
+    plt.ylabel("Mag/dB", fontsize='medium')
+
+    # draw phase spectrum
+    plt.subplot(4, 2, 7)
+    plt.title("Phase Spectrum", fontsize='medium')
+    plt.phase_spectrum(wav_data, Fs=sample_rate, color='C2')
+    plt.xlabel("Freq/Hz", fontsize='medium')
+    plt.ylabel("Phase/Radian", fontsize='medium')
+
+    # draw angle spectrum
+    plt.subplot(4, 2, 8)
+    plt.title("Angle Spectrum")
+    plt.angle_spectrum(wav_data, Fs=sample_rate, color='C2')
+    plt.xlabel("Freq/Hz", fontsize='medium')
+    plt.ylabel("Angle/Radian", fontsize='medium')
+
+
+    plt.tick_params(labelsize='medium') # set tick font size
+    plt.tight_layout()
     # save or show result
     if output_path:
         os.makedirs(output_path, exist_ok=True)
@@ -39,7 +72,6 @@ def plot_audio(audio_file, sample_rate, output_path):
         output_file = os.path.join(output_path, output_file+'.jpg')
         plt.savefig(output_file, dpi=75)
     else:
-        plt.tight_layout()
         plt.show()
 
     return
