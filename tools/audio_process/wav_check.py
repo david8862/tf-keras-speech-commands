@@ -49,7 +49,7 @@ def main():
     parser.add_argument('--sample_bit', type=int, required=False, default=16, choices=[None, 8, 16, 24, 32],
                         help='target sample bit number. default=%(default)s')
     parser.add_argument('--length_threshold', type=float, required=False, default=1.5,
-                        help='audio length threshold. default=%(default)s')
+                        help='audio length threshold in second. default=%(default)s')
 
     args = parser.parse_args()
 
@@ -60,7 +60,7 @@ def main():
         show_audio_info(wf)
         wf.close()
     else:
-        wav_files = glob.glob(os.path.join(args.wav_path, '*'))
+        wav_files = glob.glob(os.path.join(args.wav_path, '*.wav'))
 
         # init audio length statistics
         above_threshold_num = 0
@@ -84,6 +84,7 @@ def main():
         print('Max audio length: {} s'.format(length_array.max()))
         print('Min audio length: {} s'.format(length_array.min()))
         print('Average audio length: {} s'.format(length_array.mean()))
+        print('Total audio length: {} s'.format(length_array.sum()))
         print('Audio number above {} s: {}'.format(args.length_threshold, above_threshold_num))
 
         # show hist for wav audio length distribution
