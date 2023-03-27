@@ -202,7 +202,13 @@ def plot_confusion_matrix(cm, classes, accuracy, normalize=False, title='Confusi
 def evaluate_accuracy(model, model_format, eval_dataset, class_names):
     if model_format == 'MNN':
         #MNN inference engine need create session
-        session = model.createSession()
+        session_config = \
+        {
+          'backend': 'CPU',  #'CPU'/'OPENCL'/'OPENGL'/'VULKAN'/'METAL'/'TRT'/'CUDA'/'HIAI'
+          'precision': 'high',  #'normal'/'low'/'high'/'lowBF'
+          'numThread': 2
+        }
+        session = model.createSession(session_config)
 
     correct = 0.0
     target_list = []

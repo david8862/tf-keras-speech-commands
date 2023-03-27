@@ -70,7 +70,13 @@ class Listener(object):
         self.model, self.model_format = load_inference_model(self.model_path)
         if self.model_path.endswith('.mnn'):
             #MNN inference engine need create session
-            self.session = self.model.createSession()
+            session_config = \
+            {
+              'backend': 'CPU',  #'CPU'/'OPENCL'/'OPENGL'/'VULKAN'/'METAL'/'TRT'/'CUDA'/'HIAI'
+              'precision': 'high',  #'normal'/'low'/'high'/'lowBF'
+              'numThread': 2
+            }
+            self.session = self.model.createSession(session_config)
 
         # get ThresholdDecoder object for postprocess
         self.threshold_decoder = ThresholdDecoder(self.pr.threshold_config, pr.threshold_center)

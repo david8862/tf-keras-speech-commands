@@ -32,7 +32,7 @@ class ListenerParams:
          - use_delta: If this value is true, the difference between consecutive vectors is concatenated to each frame
 
     Parameters for audio pipeline:
-     - buffer_t: Input size of audio. Wakeword must fit within this time
+     - buffer_t: Input size of audio. Command must fit within this time
      - window_t: Time of the window used to calculate a single spectrogram frame
      - hop_t: Time the window advances forward to calculate the next spectrogram frame
      - sample_rate: Input audio sample rate
@@ -41,8 +41,8 @@ class ListenerParams:
      - n_filt: Number of filters to compress FFT to
      - n_mfcc: Number of MFCC coefficients to use
      - use_delta: If True, generates "delta vectors" before sending to network
-     - threshold_config: Output distribution configuration automatically generated from precise-calc-threshold
-     - threshold_center: Output distribution center automatically generated from precise-calc-threshold
+     - threshold_config: Output distribution configuration
+     - threshold_center: Output distribution center
     """
     buffer_t = attr.ib()  # type: float
     window_t = attr.ib()  # type: float
@@ -94,7 +94,7 @@ class ListenerParams:
 # Global listener parameters
 # These are the default values for all parameters
 # These were selected tentatively to balance CPU usage with accuracy
-# For the Hey Mycroft wake word, small changes to these parameters
+# For the speech commands, small changes to these parameters
 # did not make a significant difference in accuracy
 pr = ListenerParams(
     buffer_t=1.0, window_t=0.064, hop_t=0.032, sample_rate=16000,

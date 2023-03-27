@@ -342,7 +342,13 @@ def main():
     model, _ = load_inference_model(args.model_path)
     if args.model_path.endswith('.mnn'):
         #MNN inference engine need create session
-        session = model.createSession()
+        session_config = \
+        {
+          'backend': 'CPU',  #'CPU'/'OPENCL'/'OPENGL'/'VULKAN'/'METAL'/'TRT'/'CUDA'/'HIAI'
+          'precision': 'high',  #'normal'/'low'/'high'/'lowBF'
+          'numThread': 2
+        }
+        session = model.createSession(session_config)
 
     # get audio file list or single audio
     if os.path.isdir(args.audio_path):
