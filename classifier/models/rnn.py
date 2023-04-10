@@ -10,6 +10,7 @@ import tensorflow.keras.backend as K
 def SimpleGRU(input_shape=None,
               input_tensor=None,
               recurrent_units=48,
+              num_layers=1,
               include_top=False,
               classes=1000,
               dropout_rate=0.2,
@@ -23,8 +24,15 @@ def SimpleGRU(input_shape=None,
     else:
         feature_input = input_tensor
 
+    x = feature_input
+    if num_layers > 1:
+        for i in range(num_layers-1):
+            # mid layer gru need to return sequences
+            x = GRU(recurrent_units, activation='linear', return_sequences=True,
+                    dropout=dropout_rate, name='gru_unit_'+str(i))(x)
+
     x = GRU(recurrent_units, activation='linear',
-            dropout=dropout_rate, name='gru_unit')(feature_input)
+            dropout=dropout_rate, name='gru_unit_'+str(num_layers-1))(x)
 
     if include_top:
         x = Dense(classes, activation='softmax')(x)
@@ -38,6 +46,7 @@ def SimpleGRU(input_shape=None,
 def SimpleLSTM(input_shape=None,
                input_tensor=None,
                recurrent_units=48,
+               num_layers=1,
                include_top=False,
                classes=1000,
                dropout_rate=0.2,
@@ -51,8 +60,15 @@ def SimpleLSTM(input_shape=None,
     else:
         feature_input = input_tensor
 
+    x = feature_input
+    if num_layers > 1:
+        for i in range(num_layers-1):
+            # mid layer lstm need to return sequences
+            x = LSTM(recurrent_units, activation='tanh', return_sequences=True,
+                     dropout=dropout_rate, name='lstm_unit_'+str(i))(x)
+
     x = LSTM(recurrent_units, activation='tanh',
-            dropout=dropout_rate, name='lstm_unit')(feature_input)
+             dropout=dropout_rate, name='lstm_unit_'+str(num_layers-1))(x)
 
     if include_top:
         x = Dense(classes, activation='softmax')(x)
@@ -62,3 +78,14 @@ def SimpleLSTM(input_shape=None,
 
     return model
 
+
+if __name__ == '__main__':
+    input_tensor = Input(shape=(39, 13), name='feature_input')
+    model = SimpleGRU(input_tensor=input_tensor,
+                      recurrent_units=48,
+                      num_layers=2,
+                      include_top=True,
+                      classes=2)
+
+    model.summary()
+    K.set_learning_phase(0)

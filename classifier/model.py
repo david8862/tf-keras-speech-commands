@@ -14,10 +14,10 @@ from classifier.params import pr
 def get_model(model_type, num_classes, weights_path=None):
 
     # RNN model use 2D input, while CNN use 3D
-    if model_type in ['simple_gru', 'simple_lstm']:
-        input_tensor = Input(shape=(pr.n_features, pr.feature_size), name='feature_input')
-    else:
+    if model_type in ['simple_cnn', 'simple_cnn_lite']:
         input_tensor = Input(shape=(pr.n_features, pr.feature_size, 1), name='feature_input')
+    else:
+        input_tensor = Input(shape=(pr.n_features, pr.feature_size), name='feature_input')
 
 
     if model_type == 'simple_cnn':

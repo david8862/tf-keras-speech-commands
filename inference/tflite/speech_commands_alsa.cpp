@@ -346,7 +346,7 @@ bool trigger_detect(const std::vector<std::string> &classes, int index, float co
     static int activation = 0;
     static int record_index = -1;
 
-    bool chunk_activated = conf > (1.0 - sensitivity);
+    bool chunk_activated = conf > sensitivity;
 
     if (classes[index] != "background" && index == record_index && chunk_activated) {
         activation += 1;

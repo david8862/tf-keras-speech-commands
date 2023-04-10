@@ -282,7 +282,7 @@ class Listener(object):
 
         units = int(round(score * width))
         bar = 'X' * units + '-' * (width - units)
-        cutoff = round((1.0 - self.sensitivity) * width)
+        cutoff = round(self.sensitivity * width)
         print(bar[:cutoff] + bar[cutoff:].replace('X', 'x') + class_name)
 
 
@@ -537,7 +537,7 @@ class TriggerDetector(object):
         """
         Returns whether the new prediction caused an activation
         """
-        chunk_activated = score > 1.0 - self.sensitivity
+        chunk_activated = score > self.sensitivity
 
         if (self.class_names[index] != 'background' and index == self.record_index and chunk_activated):
             self.activation += 1
