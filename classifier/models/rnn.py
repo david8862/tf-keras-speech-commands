@@ -80,7 +80,7 @@ def SimpleLSTM(input_shape=None,
 
 
 if __name__ == '__main__':
-    input_tensor = Input(shape=(39, 13), name='feature_input')
+    input_tensor = Input(shape=(39, 13), batch_size=1, name='feature_input')
     model = SimpleGRU(input_tensor=input_tensor,
                       recurrent_units=48,
                       num_layers=2,

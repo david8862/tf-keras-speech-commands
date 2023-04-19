@@ -68,6 +68,9 @@ class Listener(object):
 
         # get listener inference model
         self.model, self.model_format = load_inference_model(self.model_path)
+        if self.model_format == 'H5':
+            self.model.summary()
+
         if self.model_path.endswith('.mnn'):
             #MNN inference engine need create session
             session_config = \
@@ -79,7 +82,7 @@ class Listener(object):
             self.session = self.model.createSession(session_config)
 
         # get ThresholdDecoder object for postprocess
-        self.threshold_decoder = ThresholdDecoder(self.pr.threshold_config, pr.threshold_center)
+        self.threshold_decoder = ThresholdDecoder(self.pr.threshold_config, self.pr.threshold_center)
 
         # get TriggerDetector object for postprocess
         self.detector = TriggerDetector(self.chunk_size, self.class_names, self.sensitivity, self.trigger_level)

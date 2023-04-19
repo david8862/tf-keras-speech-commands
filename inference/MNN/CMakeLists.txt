@@ -22,6 +22,15 @@ target_link_libraries(speech_commands PRIVATE -lMNN -lcjson -lstdc++ -lpthread -
 #target_link_libraries(speech_commands PRIVATE libMNN.a -lcjson -Wl,--whole-archive -Wl,--no-whole-archive -lstdc++ -lpthread)
 
 
+set(SPEECH_COMMANDS_STREAM_SRC
+        speech_commands_stream.cpp)
+
+add_executable(speech_commands_stream ${SPEECH_COMMANDS_STREAM_SRC})
+
+target_include_directories(speech_commands_stream PRIVATE ${MNN_ROOT_PATH}/include/ ${MNN_ROOT_PATH}/3rd_party/imageHelper/)
+target_link_libraries(speech_commands_stream PRIVATE -lMNN -lcjson -lstdc++ -lpthread -ldl)
+#target_link_libraries(speech_commands_stream PRIVATE libMNN.a -lcjson -Wl,--whole-archive -Wl,--no-whole-archive -lstdc++ -lpthread)
+
 
 set(SPEECH_COMMANDS_ALSA_SRC
         speech_commands_alsa.cpp)

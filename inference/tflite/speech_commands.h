@@ -19,6 +19,7 @@
 #include "tensorflow/lite/string_util.h"
 
 #include "mfcc.h"
+#include "AudioFile.h"
 
 #define LOG(x) std::cout
 
@@ -191,6 +192,83 @@ void check_input_shape(const int input_feature_num, const int input_feature_size
 }
 
 
+void check_wav_file(const AudioFile<float> &wav_file, ListenerParams &listener_params)
+{
+    int num_channels = wav_file.getNumChannels();
+    int sample_rate = wav_file.getSampleRate();
+    int bit_depth = wav_file.getBitDepth();
+
+    // input audio format:
+    // single channel, 16k, 16bit audio
+    assert(num_channels == 1 &&
+           sample_rate == listener_params.sample_rate &&
+           bit_depth == listener_params.sample_depth*8);
+
+    // double check audio sample size
+    assert(wav_file.samples[0].size() == wav_file.getNumSamplesPerChannel());
+
+    return;
+}
+
+
+// show confidence bar according to decoded score and threshold
+void print_bar(std::string class_name, float confidence, const float threshold)
+{
+    int total_length = 80;
+    std::string score_bar;
+
+    // for background prediction, just show inversed score
+    // and ignore label display
+    if (class_name == "background") {
+        confidence = 1.0 - confidence;
+        class_name = "";
+    }
+
+    if (confidence > threshold) {
+        score_bar = std::string(int(threshold * total_length), 'X') + std::string(int((confidence - threshold) * total_length), 'x');
+    }
+    else {
+        score_bar = std::string(int(confidence * total_length), 'X');
+    }
+
+    std::string total_bar = score_bar + std::string(total_length - score_bar.size(), '-') + class_name;
+    LOG(INFO) << total_bar << "\n";
+
+    return;
+}
+
+
+// read predictions and detects activations
+// align with TriggerDetector in listen.py
+bool trigger_detect(const std::vector<std::string> &classes, int index, float conf, int chunk_size, float sensitivity, int trigger_level)
+{
+    static int activation = 0;
+    static int record_index = -1;
+
+    bool chunk_activated = conf > sensitivity;
+
+    if (classes[index] != "background" && index == record_index && chunk_activated) {
+        activation += 1;
+        bool has_activated = (activation > trigger_level);
+        if (has_activated) {
+            // reset activation
+            activation = int(-(8 * 2048) / chunk_size);
+            return true;
+        }
+    }
+    else if (activation < 0) {
+        activation += 1;
+    }
+    else if (activation > 0) {
+        activation -= 1;
+    }
+
+    // record class index for checking
+    record_index = index;
+    return false;
+}
+
+
 // convert audio frames to feature vectors, currently only support mfcc feature
 void vectorize(std::vector<std::vector<float>> &feature_vectors, const std::vector<float> &audio_buffer, ListenerParams &listener_params)
 {
@@ -233,6 +311,119 @@ void vectorize(std::vector<std::vector<float>> &feature_vectors, const std::vect
     for (int i = 0; i < feature_vectors.size(); i++) {
         assert(feature_vectors[i].size() == listener_params.feature_size());
     }
+
+    return;
+}
+
+
+// A more effective approach to update feature vectors, which only need to enqueue
+// latest 2, dequeue first 2 features and keep other part unchange, but have following
+// limitation:
+//
+//  1. window_t == 2 * hop_t
+//  2. window_t == float(chunk_size) / float(sample_rate)
+//
+// A typical config:
+//
+//    sample_rate = 16000
+//    chunk_size = 1600
+//    window_t = 0.064s
+//    hop_t = 0.032s
+//
+// This may be useful when running speech_commands on some low end CPU, which cost too much
+// time in "vectorize" process.
+void update_feature_vectors(std::vector<std::vector<float>> &feature_vectors, const std::vector<float> &audio_buffer, ListenerParams &listener_params, int chunk_size)
+{
+    int sample_rate = listener_params.sample_rate;
+
+    int length_frame = listener_params.window_samples();
+    int stride = listener_params.hop_samples();
+    int length_FFT = listener_params.n_fft;
+
+    int num_coeffs = listener_params.n_mfcc;
+    int num_filters = listener_params.n_filt;
+
+    float window_t = listener_params.window_t;
+    float hop_t = listener_params.hop_t;
+
+    // check if params match usage limitation
+    if ((window_t != 2 * hop_t) || (window_t != (float(chunk_size)/float(sample_rate)))) {
+        LOG(ERROR) << "speech_commands model config doesn't support fast feature, pls double check\n";
+        exit(-1);
+    }
+    //assert(window_t == 2 * hop_t);
+    //assert(window_t == (float(chunk_size) / float(sample_rate)));
+
+    // follow frequency config in "sonopy" python package,
+    // which use 0 as low & sample_rate as high
+    int low_freq = 0;
+    int high_freq = sample_rate;
+
+    // no preprocess & delta2
+    bool use_preprocess = false;
+    bool use_delta = listener_params.use_delta;
+    bool use_delta2 = false;
+
+    // assign feature size according to mfcc config
+    int feature_size;
+    if (use_delta && use_delta2) {
+        feature_size = 3 * num_coeffs;
+    } else if (use_delta) {
+        feature_size = 2 * num_coeffs;
+    } else {
+        feature_size = num_coeffs;
+    }
+
+    // get MFCC feature for the last 1.5 frames of audio buffer
+    for (int i = (audio_buffer.size() - (length_frame + stride)); i <= audio_buffer.size() - length_frame; i += stride) {
+        std::vector<float> frame(length_frame, 0);
+        std::vector<float> feature_vector(feature_size, 0);
+
+        if (use_preprocess) {
+            // pre-emphasis
+            float alpha = 0.95; // 0.97
+            for (int j = 0; j < length_frame; j++) {
+                if (i + j < audio_buffer.size()) {
+                    frame[j] = audio_buffer[i + j] - alpha * audio_buffer[i + j - 1];
+                } else {
+                    frame[j] = 0;
+                }
+            }
+
+            // apply hamming/hanning/rect window
+            for (int j = 0; j < length_frame; j++) {
+                frame[j] *= 0.54 - 0.46 * cos(2 * M_PI * j / (length_frame - 1)); // hamming
+                //frame[j] *= 0.5 - 0.5 * cos(2 * M_PI * j / (length_frame - 1)); // hanning
+                //frame[j] *= 1; // rect
+            }
+
+        } else {
+            // get frame
+            for (int j = 0; j < length_frame; j++) {
+
+                if (i + j < audio_buffer.size()) {
+                    frame[j] = audio_buffer[i + j];
+                } else {
+                    frame[j] = 0;
+                }
+            }
+        }
+
+        // get base MFCC feature vector for 1 frame
+        mfcc::mfcc_feature<float>(feature_vector, frame, sample_rate, length_frame, length_FFT, num_coeffs, num_filters, low_freq, high_freq);
+
+        // append to 2-D feature vectors
+        feature_vectors.emplace_back(feature_vector);
+    }
+
+    // check feature vectors size, and dequeue head part if need
+    if (feature_vectors.size() > listener_params.n_features()) {
+        int dequeue_length = feature_vectors.size() - listener_params.n_features();
+        feature_vectors.erase(feature_vectors.begin(), feature_vectors.begin() + dequeue_length);
+    }
+
+    // check feature vectors shape to align with model input
+    assert(feature_vectors.size() == listener_params.n_features());
 
     return;
 }

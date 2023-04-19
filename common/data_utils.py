@@ -13,22 +13,36 @@ from classifier.params import pr
 def buffer_to_audio(buffer):
     """
     convert a raw mono audio byte string to numpy array of floats
+
+    NOTE: assume the audio sample depth is 16 bit
     """
-    return np.fromstring(buffer, dtype='<i2').astype(np.float32, order='C') / 32768.0
+    assert pr.sample_depth == 2, 'only support 16-bit sample depth.'
+
+    return np.fromstring(buffer, dtype='<i2').astype(np.float32, order='C') / (np.iinfo(np.int16).max + 1)
+
 
 
 def audio_to_buffer(audio):
     """
     convert numpy array of float to raw mono audio
+
+    NOTE: assume the audio sample depth is 16 bit
     """
-    return (audio * 32768).astype('<i2').tostring()
+    assert pr.sample_depth == 2, 'only support 16-bit sample depth.'
+
+    return (audio * (np.iinfo(np.int16).max + 1)).astype('<i2').tostring()
+
 
 
 def save_audio(filename, audio):
     """
     save loaded audio to file using the configured audio parameters
+
+    NOTE: assume the audio sample depth is 16 bit
     """
     import wavio
+    assert pr.sample_depth == 2, 'only support 16-bit sample depth.'
+
     save_audio = (audio * np.iinfo(np.int16).max).astype(np.int16)
     wavio.write(filename, save_audio, pr.sample_rate, sampwidth=pr.sample_depth, scale='none')
 

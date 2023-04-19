@@ -1,25 +1,19 @@
 //
-//  speech_commands.cpp
+//  speech_commands_stream.cpp
 //  MNN
 //
-//  Created by david8862 on 2022/12/01.
+//  Created by david8862 on 2023/04/19.
 //
 #include <stdio.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <algorithm>
-#include <fstream>
-#include <functional>
-#include <memory>
-#include <sstream>
-#include <iostream>
-#include <vector>
-#include <numeric>
-#include <math.h>
 #include <unistd.h>
+#include <math.h>
 #include <getopt.h>
-#include <string.h>
 #include <sys/time.h>
+#include <assert.h>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
 
 #define MNN_OPEN_TIME_TRACE
 #include "MNN/ImageProcess.hpp"
@@ -29,14 +23,34 @@
 
 #include "speech_commands.h"
 #include "AudioFile.h"
+#include "mfcc.h"
+#include "threshold_decoder.h"
 
 using namespace MNN;
 
 
+void update_audio_buffer(const AudioFile<float> &wav_file, int index, std::vector<float> &audio_buffer, int chunk_size, ListenerParams &listener_params)
+{
+    // append the chunk audio data to audio buffer
+    for (int i = index; i < index+chunk_size; i++) {
+        float sample = wav_file.samples[0][i];
+        audio_buffer.emplace_back(sample);
+    }
+
+    // check audio buffer size, and dequeue head part if need
+    if (audio_buffer.size() > listener_params.max_samples()) {
+        int dequeue_length = audio_buffer.size() - listener_params.max_samples();
+        audio_buffer.erase(audio_buffer.begin(), audio_buffer.begin() + dequeue_length);
+    }
+
+    // check feature vectors shape to align with model input
+    assert(audio_buffer.size() <= listener_params.max_samples());
+
+    return;
+}
+
 
 void RunInference(Settings* s) {
-    // record run time for every stage
-    struct timeval start_time, stop_time;
 
     // create model & session
     std::shared_ptr<Interpreter> net(Interpreter::createFromFile(s->model_name.c_str()));
@@ -66,6 +80,9 @@ void RunInference(Settings* s) {
 
     MNN_PRINT("feature_input: name:%s, width:%d, height:%d, channel:%d, dim_type:%s\n", inputs.begin()->first.c_str(), input_width, input_height, input_channel, dim_type_string[input_dim_type].c_str());
 
+    // assume input tensor type is float
+    MNN_ASSERT(feature_input->getType().code == halide_type_float);
+
     auto shape = feature_input->shape();
     shape[0] = 1;
     net->resizeTensor(feature_input, shape);
@@ -74,6 +91,9 @@ void RunInference(Settings* s) {
     // since we don't need to create other sessions any more,
     // just release model data to save memory
     net->releaseModel();
+
+    // create a host tensor for input data
+    auto dataTensor = new Tensor(feature_input, Tensor::TENSORFLOW);
 
     // model params json config
     ListenerParams listener_params;
@@ -97,93 +117,6 @@ void RunInference(Settings* s) {
     assert(classes[0] == "background");
     int num_classes = classes.size();
     MNN_PRINT("num_classes: %d\n", num_classes);
-
-    // load wav file with: https://github.com/adamstark/AudioFile
-    // which just return the normalized float audio samples
-    AudioFile<float> wav_file;
-    wav_file.load(s->input_wav_name);
-
-    // show wav file info
-    MNN_PRINT("\nInput audio info:\n");
-    wav_file.printSummary();
-
-    // check wav file format
-    check_wav_file(wav_file, listener_params);
-
-    // create input audio buffer
-    std::vector<float> audio_buffer(listener_params.max_samples(), 0);
-
-    if (wav_file.getNumSamplesPerChannel() <= listener_params.max_samples()) {
-        // audio file is short than input buffer,
-        // copy all samples to tail of input buffer
-        int index_shift = listener_params.max_samples() - wav_file.getNumSamplesPerChannel();
-        for (int i = 0; i < wav_file.getNumSamplesPerChannel(); i++) {
-            audio_buffer[i + index_shift] = wav_file.samples[0][i];
-            //audio_buffer[i] = wav_file.samples[0][i];
-        }
-    } else {
-        // audio file is longer than input buffer,
-        // just copy tail part to align with vectorization.py
-        int index_shift = wav_file.getNumSamplesPerChannel() - listener_params.max_samples();
-
-        for (int i = 0; i < audio_buffer.size(); i++) {
-            audio_buffer[i] = wav_file.samples[0][i + index_shift];
-            //audio_buffer[i] = wav_file.samples[0][i];
-        }
-    }
-
-    if (s->verbose) {
-        MNN_PRINT("\nfirst 10 samples of input audio:\n");
-        for (int i = 0; i < 10; i++) {
-            MNN_PRINT("%f, ", audio_buffer[i]);
-        }
-        MNN_PRINT("\n");
-    }
-
-    // get frequency domain feature vectors
-    gettimeofday(&start_time, nullptr);
-    std::vector<std::vector<float>> feature_vectors;
-    vectorize(feature_vectors, audio_buffer, listener_params);
-    gettimeofday(&stop_time, nullptr);
-    MNN_PRINT("feature vectors extraction time: %lf ms\n", (get_us(stop_time) - get_us(start_time)) / 1000);
-
-    if (s->verbose) {
-        // print feature vectors for check
-        MNN_PRINT("\n feature vectors for input audio:\n");
-        for (int i = 0; i < feature_vectors.size(); i++) {
-            for (int j = 0; j < feature_vectors[i].size(); j++) {
-                MNN_PRINT("%f, ", feature_vectors[i][j]);
-            }
-            MNN_PRINT("\n");
-        }
-    }
-
-    // assume input tensor type is float
-    MNN_ASSERT(feature_input->getType().code == halide_type_float);
-
-    // create a host tensor for input data
-    auto dataTensor = new Tensor(feature_input, Tensor::TENSORFLOW);
-    fill_data(dataTensor->host<float>(), feature_vectors, s);
-
-    // run warm up session
-    if (s->loop_count > 1)
-        for (int i = 0; i < s->number_of_warmup_runs; i++) {
-            feature_input->copyFromHostTensor(dataTensor);
-            if (net->runSession(session) != NO_ERROR) {
-                MNN_PRINT("Failed to invoke MNN!\n");
-            }
-        }
-
-    // run model sessions to get output
-    gettimeofday(&start_time, nullptr);
-    for (int i = 0; i < s->loop_count; i++) {
-        feature_input->copyFromHostTensor(dataTensor);
-        if (net->runSession(session) != NO_ERROR) {
-            MNN_PRINT("Failed to invoke MNN!\n");
-        }
-    }
-    gettimeofday(&stop_time, nullptr);
-    MNN_PRINT("model invoke average time: %lf ms\n", (get_us(stop_time) - get_us(start_time)) / (1000 * s->loop_count));
 
 
     // get output tensor info, assume only 1 output tensor (Identity)
@@ -220,65 +153,130 @@ void RunInference(Settings* s) {
     // check if predict class number matches label file
     MNN_ASSERT(num_classes == class_size);
 
-    // Copy output tensors to host, for further postprocess
+    // create host tensor for output data
     std::shared_ptr<Tensor> output_tensor(new Tensor(class_output, class_dim_type));
-    class_output->copyToHostTensor(output_tensor.get());
 
     // Now we only support float32 type output tensor
     MNN_ASSERT(output_tensor->getType().code == halide_type_float);
     MNN_ASSERT(output_tensor->getType().bits == 32);
 
 
-    std::vector<std::pair<uint8_t, float>> class_results;
-    // Do speech_commands_postprocess to get sorted class index & scores
-    gettimeofday(&start_time, nullptr);
-    speech_commands_postprocess(output_tensor.get(), class_results);
-    gettimeofday(&stop_time, nullptr);
-    MNN_PRINT("speech_commands_postprocess time: %lf ms\n", (get_us(stop_time) - get_us(start_time)) / 1000);
+    // load wav file with: https://github.com/adamstark/AudioFile
+    // which just return the normalized float audio samples
+    AudioFile<float> wav_file;
+    wav_file.load(s->input_wav_name);
 
-    // check class size and top_k
-    MNN_ASSERT(num_classes == class_results.size());
-    MNN_ASSERT(s->top_k <= num_classes);
+    // show wav file info
+    MNN_PRINT("\nInput audio info:\n");
+    wav_file.printSummary();
 
-    // Open result txt file
-    std::ofstream resultOs(s->result_file_name.c_str());
+    // check wav file format
+    check_wav_file(wav_file, listener_params);
 
-    // Show classification result
-    MNN_PRINT("Inferenced class:\n");
-    for(int i = 0; i < s->top_k; i++) {
-        auto class_result = class_results[i];
-        MNN_PRINT("%s: %f\n", classes[class_result.first].c_str(), class_result.second);
-        resultOs << classes[class_result.first] << ": " << class_result.second << "\n";
+
+    // initialize input audio buffer
+    std::vector<float> audio_buffer(listener_params.max_samples(), 0);
+
+    // initialize feature vector buffer
+    int feature_num = listener_params.n_features();
+    int feature_size = listener_params.feature_size();
+    std::vector<std::vector<float>> feature_vectors(feature_num, std::vector<float>(feature_size, 0));
+
+    // prepare threshold decoder for post process
+    ThresholdDecoder threshold_decoder(listener_params.threshold_config, listener_params.threshold_center);
+
+
+    // loop to listen the wav file
+    for (int i = 0; i <= wav_file.getNumSamplesPerChannel() - s->chunk_size; i += s->chunk_size) {
+        // read audio data from wav file to audio buffer
+        update_audio_buffer(wav_file, i, audio_buffer, s->chunk_size, listener_params);
+
+        // here we pause the loop for some time to simulate real world listen
+        usleep(s->chunk_size * 1e6 / listener_params.sample_rate);
+
+
+        // update frequency domain feature vectors
+        if (s->fast_feature) {
+            // use fast approach to update feature vectors
+            update_feature_vectors(feature_vectors, audio_buffer, listener_params, s->chunk_size);
+        }
+        else {
+            // standard feature vectorize, update whole feature vectors
+            feature_vectors.clear();
+            vectorize(feature_vectors, audio_buffer, listener_params);
+        }
+
+        // fulfill feature vectors data to model input tensor
+        fill_data(dataTensor->host<float>(), feature_vectors, s);
+
+        // run speech_commands model
+        feature_input->copyFromHostTensor(dataTensor);
+        if (net->runSession(session) != NO_ERROR) {
+            MNN_PRINT("Failed to invoke MNN!\n");
+        }
+
+        // Copy output tensors to host, for further postprocess
+        class_output->copyToHostTensor(output_tensor.get());
+
+        std::vector<std::pair<uint8_t, float>> class_results;
+        // do speech_commands_postprocess to get sorted command index & scores
+        speech_commands_postprocess(output_tensor.get(), class_results);
+
+        // fetch top command and raw score
+        auto class_result = class_results[0];
+        int index = class_result.first;
+        std::string class_name = classes[index];
+        float raw_output = class_result.second;
+
+        float conf;
+        // decode non-bg raw score with ThresholdDecoder
+        if (class_name != "background") {
+            conf = threshold_decoder.decode(raw_output);
+        }
+        else {
+            conf = raw_output;
+        }
+
+        // print confidence bar
+        print_bar(class_name, conf, s->conf_thrd);
+
+        // detect activations
+        bool detected = trigger_detect(classes, index, conf, s->chunk_size, s->conf_thrd, s->trigger_level);
+        if (detected) {
+            LOG(INFO) << "command " << class_name << " detected!\n";
+        }
     }
 
     delete dataTensor;
     // Release session and model
     net->releaseSession(session);
     //net->releaseModel();
+
     return;
 }
+
 
 
 void display_usage() {
     std::cout
-        << "Usage: speech_commands\n"
+        << "Usage: speech_commands_stream\n"
         << "--mnn_model, -m: model_name.mnn\n"
         << "--params_file, -p: params.json\n"
         << "--classes, -l: classes labels for the model\n"
-        << "--top_k, -k: show top k classes result\n"
         << "--wav_file, -i: test.wav\n"
-        << "--allow_fp16, -f: [0|1], allow running fp32 models with fp16 or not\n"
+        << "--chunk_size, -c: audio samples between inferences\n"
+        << "--sensitivity, -s: model output required to be considered activated\n"
+        << "--trigger_level, -g: number of activated chunks to cause an activation\n"
+        << "--fast_feature, -e: [0|1], use fast feature extraction or not\n"
         << "--threads, -t: number of threads\n"
-        << "--count, -c: loop interpreter->Invoke() for certain times\n"
-        << "--warmup_runs, -w: number of warmup runs\n"
-        << "--result, -r: result txt file to save detection output\n"
+        << "--allow_fp16, -f: [0|1], allow running fp32 models with fp16 or not\n"
         << "--verbose, -v: [0|1] print more information\n"
         << "\n";
-    return;
 }
 
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     Settings s;
 
     int c;
@@ -287,23 +285,22 @@ int main(int argc, char** argv) {
             {"mnn_model", required_argument, nullptr, 'm'},
             {"params_file", required_argument, nullptr, 'p'},
             {"classes", required_argument, nullptr, 'l'},
-            {"top_k", required_argument, nullptr, 'k'},
             {"wav_file", required_argument, nullptr, 'i'},
+            {"chunk_size", required_argument, nullptr, 'c'},
+            {"sensitivity", required_argument, nullptr, 's'},
+            {"trigger_level", required_argument, nullptr, 'g'},
+            {"fast_feature", required_argument, nullptr, 'e'},
             {"threads", required_argument, nullptr, 't'},
             {"allow_fp16", required_argument, nullptr, 'f'},
-            {"count", required_argument, nullptr, 'c'},
-            {"warmup_runs", required_argument, nullptr, 'w'},
-            {"result", required_argument, nullptr, 'r'},
             {"verbose", required_argument, nullptr, 'v'},
             {"help", no_argument, nullptr, 'h'},
             {nullptr, 0, nullptr, 0}};
-
 
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
         c = getopt_long(argc, argv,
-                        "c:f:hi:k:l:m:p:r:t:v:w:", long_options,
+                        "c:e:f:g:i:hl:m:p:s:t:v:", long_options,
                         &option_index);
 
         /* Detect the end of the options. */
@@ -311,19 +308,23 @@ int main(int argc, char** argv) {
 
         switch (c) {
             case 'c':
-                s.loop_count =
+                s.chunk_size = strtol(  // NOLINT(runtime/deprecated_fn)
+                        optarg, nullptr, 10);
+                break;
+            case 'e':
+                s.fast_feature =
                     strtol(optarg, nullptr, 10);  // NOLINT(runtime/deprecated_fn)
                 break;
             case 'f':
                 s.allow_fp16 =
                     strtol(optarg, nullptr, 10);  // NOLINT(runtime/deprecated_fn)
                 break;
+            case 'g':
+                s.trigger_level =
+                    strtol(optarg, nullptr, 10);  // NOLINT(runtime/deprecated_fn)
+                break;
             case 'i':
                 s.input_wav_name = optarg;
-                break;
-            case 'k':
-                s.top_k=
-                    strtol(optarg, nullptr, 10);  // NOLINT(runtime/deprecated_fn)
                 break;
             case 'l':
                 s.classes_file_name = optarg;
@@ -334,8 +335,8 @@ int main(int argc, char** argv) {
             case 'p':
                 s.params_file_name = optarg;
                 break;
-            case 'r':
-                s.result_file_name = optarg;
+            case 's':
+                s.conf_thrd = strtod(optarg, nullptr);
                 break;
             case 't':
                 s.number_of_threads = strtol(  // NOLINT(runtime/deprecated_fn)
@@ -343,10 +344,6 @@ int main(int argc, char** argv) {
                 break;
             case 'v':
                 s.verbose =
-                    strtol(optarg, nullptr, 10);  // NOLINT(runtime/deprecated_fn)
-                break;
-            case 'w':
-                s.number_of_warmup_runs =
                     strtol(optarg, nullptr, 10);  // NOLINT(runtime/deprecated_fn)
                 break;
             case 'h':

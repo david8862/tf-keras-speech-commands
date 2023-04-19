@@ -175,7 +175,60 @@ right: 0.999427
 left: 0.000572826
 ```
 
-7. Run ALSA audio stream input inference app
+
+7. Run stream input inference app on wav file
+```
+# cd tf-keras-speech-commands/inference/tflite/build
+# ./speech_commands_stream -h
+Usage: speech_commands_stream
+--tflite_model, -m: model_name.tflite
+--params_file, -p: params.json
+--classes, -l: classes labels for the model
+--wav_file, -i: test.wav
+--chunk_size, -c: audio samples between inferences
+--sensitivity, -s: model output required to be considered activated
+--trigger_level, -g: number of activated chunks to cause an activation
+--fast_feature, -e: [0|1], use fast feature extraction or not
+--threads, -t: number of threads
+--allow_fp16, -f: [0|1], allow running fp32 models with fp16 or not
+--verbose, -v: [0|1] print more information
+
+# ./speech_commands_stream -m model.tflite -p ../../../configs/params.json -l ../../../configs/direction_classes.txt -i ../../../example/right_1.wav -c 1024 -s 0.5 -g 3 -e 0 -v 1
+Loaded model model.tflite
+resolved reporter
+input tensor info: name feature_input, type kTfLiteFloat32, dim_size 3, batch 1, feature_num 30, feature_size 20
+output tensor info: name Identity, type kTfLiteFloat32, dim_size 2, batch 1, length 5
+params json parsed
+num_classes: 5
+
+Input audio info:
+|======================================|
+Num Channels: 1
+Num Samples Per Channel: 16000
+Sample Rate: 16000
+Bit Depth: 16
+Length in Seconds: 1
+|======================================|
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+XXXXXXXXXXXXX-------------------------------------------------------------------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxx--------------------------------------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxx-----------------------------------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxx---------------------------------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxx---------------------------------right
+command right detected!
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxx------------------------------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxx--------------------------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxx-----------------------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxx-----------------------right
+```
+
+
+8. Run stream input inference app on ALSA audio device
 ```
 # cd tf-keras-speech-commands/inference/tflite/build
 # ./speech_commands_alsa -h
@@ -416,7 +469,60 @@ background: 0.000089
 Here the [classes](https://github.com/david8862/tf-keras-speech-commands/blob/master/configs/direction_classes.txt) & [params](https://github.com/david8862/tf-keras-speech-commands/blob/master/configs/params.json) file format are the same as used in training part
 
 
-7. Run ALSA audio stream input inference app
+
+7. Run stream input inference app on wav file
+```
+# cd tf-keras-speech-commands/inference/MNN/build
+# ./speech_commands_stream -h
+Usage: speech_commands_stream
+--mnn_model, -m: model_name.mnn
+--params_file, -p: params.json
+--classes, -l: classes labels for the model
+--wav_file, -i: test.wav
+--chunk_size, -c: audio samples between inferences
+--sensitivity, -s: model output required to be considered activated
+--trigger_level, -g: number of activated chunks to cause an activation
+--fast_feature, -e: [0|1], use fast feature extraction or not
+--threads, -t: number of threads
+--allow_fp16, -f: [0|1], allow running fp32 models with fp16 or not
+--verbose, -v: [0|1] print more information
+
+
+# ./speech_commands_stream -m model.pb.mnn -p ../../../configs/params.json -l ../../../configs/direction_classes.txt -i ../../../example/right_1.wav -c 1024 -s 0.5 -g 3 -e 0 -v 1
+feature_input: name:feature_input, width:20, height:30, channel:1, dim_type:CAFFE
+params json parsed
+num_classes: 5
+output tensor: name:score_predict/Softmax, width:1, height:5, channel:1, dim_type:TENSORFLOW
+Tensorflow format: NHWC
+
+Input audio info:
+|======================================|
+Num Channels: 1
+Num Samples Per Channel: 16000
+Sample Rate: 16000
+Bit Depth: 16
+Length in Seconds: 1
+|======================================|
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+XXXXXXXXXXXXXX------------------------------------------------------------------
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-----------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx----right
+command right detected!
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-----right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--------right
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-----right
+```
+
+
+8. Run stream input inference app on ALSA audio device
 ```
 # cd tf-keras-speech-commands/inference/MNN/build
 # ./speech_commands_alsa -h

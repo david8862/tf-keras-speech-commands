@@ -23,6 +23,16 @@ target_link_libraries(speech_commands PRIVATE libtensorflow-lite.a -lcjson -lstd
 #target_link_libraries(speech_commands PRIVATE -ltensorflow-lite -lcjson -lstdc++ -lpthread -lm -ldl -lrt)
 
 
+set(SPEECH_COMMANDS_STREAM_SRC
+        speech_commands_stream.cpp)
+
+add_executable(speech_commands_stream ${SPEECH_COMMANDS_STREAM_SRC})
+
+target_include_directories(speech_commands_stream PRIVATE ${TF_ROOT_PATH} ${TF_ROOT_PATH}/tensorflow/lite/tools/make/downloads/flatbuffers/include)
+target_link_libraries(speech_commands_stream PRIVATE libtensorflow-lite.a -lcjson -lstdc++ -lpthread -lm -ldl -lrt)
+#target_link_libraries(speech_commands_stream PRIVATE -ltensorflow-lite -lcjson -lstdc++ -lpthread -lm -ldl -lrt)
+
+
 set(SPEECH_COMMANDS_ALSA_SRC
         speech_commands_alsa.cpp)
 
