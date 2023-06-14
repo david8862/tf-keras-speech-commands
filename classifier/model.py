@@ -11,13 +11,13 @@ from classifier.models.rnn import SimpleGRU, SimpleLSTM
 from classifier.params import pr
 
 
-def get_model(model_type, num_classes, weights_path=None):
+def get_model(model_type, num_classes, batch_size=None, weights_path=None):
 
     # RNN model use 2D input, while CNN use 3D
     if model_type in ['simple_cnn', 'simple_cnn_lite']:
-        input_tensor = Input(shape=(pr.n_features, pr.feature_size, 1), batch_size=None, name='feature_input')
+        input_tensor = Input(shape=(pr.n_features, pr.feature_size, 1), batch_size=batch_size, name='feature_input')
     else:
-        input_tensor = Input(shape=(pr.n_features, pr.feature_size), batch_size=None, name='feature_input')
+        input_tensor = Input(shape=(pr.n_features, pr.feature_size), batch_size=batch_size, name='feature_input')
 
 
     if model_type == 'simple_cnn':

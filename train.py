@@ -71,7 +71,7 @@ def main(args):
         losses = SparseCategoricalCrossEntropy()
 
     # get train model
-    model = get_model(args.model_type, num_classes, args.weights_path)
+    model = get_model(args.model_type, num_classes, weights_path=args.weights_path)
     model.compile(optimizer=optimizer,
                   loss=losses,
                   metrics=['accuracy'])
