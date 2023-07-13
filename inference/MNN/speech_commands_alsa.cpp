@@ -37,7 +37,7 @@ void prepare_alsa_device(const std::string &alsa_device, snd_pcm_t* &handle, int
     // open alsa device in capture mode
     ret = snd_pcm_open(&handle, alsa_device.c_str(), SND_PCM_STREAM_CAPTURE, 0);
     if (ret < 0) {
-        LOG(ERROR) << "Unable to open pcm device!\n";
+        LOG(ERROR) << "unable to open pcm device: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
 
@@ -48,14 +48,14 @@ void prepare_alsa_device(const std::string &alsa_device, snd_pcm_t* &handle, int
     // init hw params with alsa device
     ret = snd_pcm_hw_params_any(handle, params);
     if (ret < 0) {
-        LOG(ERROR) << "Can not configure this PCM device!\n";
+        LOG(ERROR) << "can not configure this PCM device: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
 
     // set data arrange type in audio stream
     ret = snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to set PCM device to interleaved!\n";
+        LOG(ERROR) << "fail to set PCM device to interleaved: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
 
@@ -65,23 +65,23 @@ void prepare_alsa_device(const std::string &alsa_device, snd_pcm_t* &handle, int
     snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
     ret = snd_pcm_hw_params_set_format(handle, params, pcm_format);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to set PCM device to 16-bit signed PCM\n";
+        LOG(ERROR) << "fail to set PCM data format: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
 
     // set channel number
     ret = snd_pcm_hw_params_set_channels(handle, params, CHANNEL_NUM);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to set PCM device channels\n";
+        LOG(ERROR) << "fail to set PCM device channels: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
 
     // set sample rate
-    unsigned int val = listener_params.sample_rate;
+    unsigned int sample_rate = listener_params.sample_rate;
     int dir = 0;
-    ret = snd_pcm_hw_params_set_rate(handle, params, val, dir);
+    ret = snd_pcm_hw_params_set_rate(handle, params, sample_rate, dir);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to set PCM device to sample rate\n";
+        LOG(ERROR) << "fail to set PCM device sample rate: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
 
@@ -94,7 +94,7 @@ void prepare_alsa_device(const std::string &alsa_device, snd_pcm_t* &handle, int
 
     ret = snd_pcm_hw_params_set_buffer_time_near(handle, params, &buffer_time, 0);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to set PCM device to buffer time\n";
+        LOG(ERROR) << "fail to set PCM device buffer time: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
     LOG(INFO) << "PCM buffer time: " << buffer_time << "\n";
@@ -103,7 +103,7 @@ void prepare_alsa_device(const std::string &alsa_device, snd_pcm_t* &handle, int
     //unsigned int period_time = 64000;  // 0.1s
     //ret = snd_pcm_hw_params_set_period_time_near(handle, params, &period_time, 0);
     //if (ret < 0) {
-        //LOG(ERROR) << "Failed to set PCM device to period time\n";
+        //LOG(ERROR) << "fail to set PCM device period time: " << snd_strerror(ret) << "\n";
         //exit(-1);
     //}
     //LOG(INFO) << "PCM period time: " << period_time << "\n";
@@ -112,7 +112,7 @@ void prepare_alsa_device(const std::string &alsa_device, snd_pcm_t* &handle, int
     snd_pcm_uframes_t period_size = chunk_size;
     ret = snd_pcm_hw_params_set_period_size_near(handle, params, &period_size, 0);
     if (ret < 0) {
-        LOG(ERROR) << "Failed to set PCM device to period size\n";
+        LOG(ERROR) << "fail to set PCM device period size: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
     LOG(INFO) << "PCM sample period size: " << period_size << "\n";
@@ -120,7 +120,17 @@ void prepare_alsa_device(const std::string &alsa_device, snd_pcm_t* &handle, int
     // apply params to alsa PCM device
     ret = snd_pcm_hw_params(handle, params);
     if (ret < 0) {
-        LOG(ERROR) << "Unable to set hw parameters\n";
+        LOG(ERROR) << "unable to set hw parameters: " << snd_strerror(ret) << "\n";
+        exit(-1);
+    }
+
+    // release hw params
+    snd_pcm_hw_params_free(params);
+
+    // prepare alsa device
+    ret = snd_pcm_prepare(handle);
+    if (ret < 0) {
+        LOG(ERROR) << "can not prepare audio interface for use: " << snd_strerror(ret) << "\n";
         exit(-1);
     }
 
@@ -162,10 +172,10 @@ void update_audio_buffer(snd_pcm_t* &handle, std::vector<float> &audio_buffer, i
 
     if (ret == -EPIPE) {
         // EPIPE means overrun
-        LOG(ERROR) << "Overrun occurred\n";
+        LOG(ERROR) << "overrun occurred\n";
         ret = snd_pcm_prepare(handle);
         if(ret < 0) {
-            LOG(ERROR) << "Failed to recover from overrun\n";
+            LOG(ERROR) << "fail to recover from overrun: " << snd_strerror(ret) << "\n";
             exit(-1);
         }
     }
