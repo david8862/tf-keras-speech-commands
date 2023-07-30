@@ -381,14 +381,11 @@ void RunInference(Settings* s) {
             conf = raw_output;
         }
 
-        // print confidence bar
-        print_bar(class_name, conf, s->conf_thrd);
-
         // detect activations
-        bool detected = trigger_detect(classes, index, conf, s->chunk_size, s->conf_thrd, s->trigger_level);
-        if (detected) {
-            LOG(INFO) << "command " << class_name << " detected!\n";
-        }
+        bool activate = trigger_detect(classes, index, conf, s->chunk_size, s->conf_thrd, s->trigger_level);
+
+        // print confidence bar
+        print_bar(class_name, conf, s->conf_thrd, activate, s->verbose);
     }
 
     // release resouces
@@ -400,6 +397,7 @@ void RunInference(Settings* s) {
     net->releaseSession(session);
     //net->releaseModel();
 
+    MNN_PRINT("\ndone\n");
     return;
 }
 

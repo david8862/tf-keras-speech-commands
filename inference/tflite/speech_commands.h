@@ -212,11 +212,8 @@ void check_wav_file(const AudioFile<float> &wav_file, ListenerParams &listener_p
 
 
 // show confidence bar according to decoded score and threshold
-void print_bar(std::string class_name, float confidence, const float threshold)
+void print_bar(std::string class_name, float confidence, const float threshold, bool activate, bool show_detail)
 {
-    int total_length = 80;
-    std::string score_bar;
-
     // for background prediction, just show inversed score
     // and ignore label display
     if (class_name == "background") {
@@ -224,15 +221,38 @@ void print_bar(std::string class_name, float confidence, const float threshold)
         class_name = "";
     }
 
-    if (confidence > threshold) {
-        score_bar = std::string(int(threshold * total_length), 'X') + std::string(int((confidence - threshold) * total_length), 'x');
+    if (show_detail) {
+        int total_length = 80;
+        std::string score_bar;
+
+        if (confidence > threshold) {
+            score_bar = std::string(int(threshold * total_length), 'X') + std::string(int((confidence - threshold) * total_length), 'x');
+        }
+        else {
+            score_bar = std::string(int(confidence * total_length), 'X');
+        }
+
+        std::string total_bar = score_bar + std::string(total_length - score_bar.size(), '-') + class_name;
+        LOG(INFO) << total_bar << "\n";
+
+        if (activate) {
+            LOG(INFO) << "command " << class_name << " detected!\n";
+        }
     }
     else {
-        score_bar = std::string(int(confidence * total_length), 'X');
+        if (activate) {
+            LOG(INFO) << class_name << std::flush;
+            std::cout.flush();
+        }
+        else {
+            if (confidence > threshold) {
+                LOG(INFO) << "!" << std::flush;
+            }
+            else {
+                LOG(INFO) << "." << std::flush;
+            }
+        }
     }
-
-    std::string total_bar = score_bar + std::string(total_length - score_bar.size(), '-') + class_name;
-    LOG(INFO) << total_bar << "\n";
 
     return;
 }
