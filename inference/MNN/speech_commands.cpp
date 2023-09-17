@@ -101,7 +101,10 @@ void RunInference(Settings* s) {
     // load wav file with: https://github.com/adamstark/AudioFile
     // which just return the normalized float audio samples
     AudioFile<float> wav_file;
-    wav_file.load(s->input_wav_name);
+    if (!wav_file.load(s->input_wav_name)) {
+        MNN_PRINT("Unable to open wav file!\n");
+        exit(-1);
+    }
 
     // show wav file info
     MNN_PRINT("\nInput audio info:\n");
