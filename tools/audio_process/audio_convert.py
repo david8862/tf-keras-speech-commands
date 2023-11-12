@@ -56,9 +56,7 @@ def generate_white_noise(length, sample_rate, sample_bit=16, amplitude=0.7):
 def pcm_convert(audio_file, output_path, channel_num, sample_rate, sample_bit, clip_length, fill_white_noise, noise_amplitude, target_format, verbose=False):
     assert (channel_num and sample_rate and sample_bit), \
             'convert pcm audio {} need to provide channel number, sample_rate and sample_bit'.format(audio_file)
-
     assert (target_format == 'wav'), 'only support convert to .wav for pcm audio'
-    assert (channel_num == 1), 'only support single channel for pcm audio'
 
     f = open(audio_file, 'rb')
     pcm_data = f.read()
