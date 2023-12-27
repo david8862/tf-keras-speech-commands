@@ -17,7 +17,6 @@ import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow.lite.python import interpreter as interpreter_wrapper
 import MNN
-import onnxruntime
 
 from classifier.params import pr, inject_params
 from common.utils import get_classes, optimize_tf_gpu

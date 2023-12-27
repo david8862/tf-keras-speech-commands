@@ -290,12 +290,53 @@ class VAD_webrtc(object):
         return detected_windows
 
 
+import librosa
+class VAD_naive(object):
+    """
+    Naive detect voice activity in wav file
+    """
+    def __init__(self, wav_file):
+        self.data, self.sample_rate = librosa.load(wav_file, sr=None)
+        self.frame_time = 0.03  #30 ms
+
+    def detect_speech(self):
+        section_samples = int(self.sample_rate * self.frame_time)
+
+        speech_time = []
+        speech_label = {}
+        i = 0
+        flag = False
+        while (i <= len(self.data)):
+            section = self.data[i:i+section_samples]
+            i += section_samples
+
+            power = np.sum(section ** 2)
+
+            if power > 1 and flag == False:
+                flag = True
+                speech_label['speech_begin'] = i / self.sample_rate
+
+            if power < 0.01 and flag == True:
+                flag = False
+                speech_label['speech_end'] = i / self.sample_rate
+                speech_time.append(speech_label)
+                speech_label = {}
+
+        #print('speech time:', speech_time)
+        return speech_time
+
+    def convert_windows_to_readable_labels(self, detected_windows):
+        return detected_windows
+
+
 def speech_detect(wav_file, vad_type):
     # create VAD object to detect speech
     if vad_type == 'webrtc':
         v = VAD_webrtc(wav_file)
     elif vad_type == 'simple':
         v = VoiceActivityDetector(wav_file)
+    elif vad_type == 'naive':
+        v = VAD_naive(wav_file)
     else:
         raise ValueError('Unsupported VAD type')
 
@@ -314,7 +355,7 @@ def main():
                         help='output path for splited wav files')
     parser.add_argument('--backup_path', type=str, required=True,
                         help='path to backup split failed wav files')
-    parser.add_argument('--vad_type', type=str, required=False, default='webrtc', choices=['webrtc', 'simple'],
+    parser.add_argument('--vad_type', type=str, required=False, default='webrtc', choices=['webrtc', 'simple', 'naive'],
                         help='VAD algorithm type. default=%(default)s')
 
     args = parser.parse_args()

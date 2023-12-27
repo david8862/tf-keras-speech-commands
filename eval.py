@@ -14,7 +14,6 @@ import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow.lite.python import interpreter as interpreter_wrapper
 import MNN
-import onnxruntime
 
 from classifier.data import get_dataset
 from classifier.params import inject_params
