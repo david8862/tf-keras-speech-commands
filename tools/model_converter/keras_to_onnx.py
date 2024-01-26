@@ -27,14 +27,19 @@ def onnx_convert_old(keras_model_file, output_file, op_set):
     onnx.save_model(onnx_model, output_file)
 
 
-def onnx_convert(keras_model_file, output_file, op_set, inputs_as_nchw):
+def onnx_convert(keras_model_file, output_file, op_set, batch_size, inputs_as_nchw):
     import tf2onnx
     model = load_model(keras_model_file, compile=False)
 
     # assume only 1 input tensor for feature vector
     assert len(model.inputs) == 1, 'invalid input tensor number.'
 
-    spec = (tf.TensorSpec(model.inputs[0].shape, tf.float32, name="feature_input"),)
+    # assign batch size if not specified in keras model
+    input_shape = list(model.inputs[0].shape)
+    if input_shape[0] == 0 or input_shape[0] is None:
+        input_shape[0] = batch_size
+
+    spec = (tf.TensorSpec(shape=input_shape, dtype=tf.float32, name="image_input"),)
 
     if inputs_as_nchw:
         nchw_inputs_list = [model.inputs[0].name]
@@ -77,6 +82,7 @@ def main():
     parser.add_argument('--keras_model_file', required=True, type=str, help='path to keras model file')
     parser.add_argument('--output_file', required=True, type=str, help='output onnx model file')
     parser.add_argument('--op_set', required=False, type=int, help='onnx op set, default=%(default)s', default=10)
+    parser.add_argument('--batch_size', required=False, type=int, help='assign batch size if not specified in keras model, default=%(default)s', default=1)
     parser.add_argument('--inputs_as_nchw', help="convert input layout to NCHW", default=False, action="store_true")
     parser.add_argument('--with_savedmodel', default=False, action="store_true", help='use a temp savedmodel for convert')
 
@@ -85,7 +91,7 @@ def main():
     if args.with_savedmodel:
         onnx_convert_with_savedmodel(args.keras_model_file, args.output_file, args.op_set, args.inputs_as_nchw)
     else:
-        onnx_convert(args.keras_model_file, args.output_file, args.op_set, args.inputs_as_nchw)
+        onnx_convert(args.keras_model_file, args.output_file, args.op_set, args.batch_size, args.inputs_as_nchw)
 
 
 if __name__ == '__main__':
